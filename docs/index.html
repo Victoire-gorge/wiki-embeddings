@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wiki-embeddings — conception</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #ffffff;
+  --surface: #f7f6f2;
+  --border: #e5e3dc;
+  --border-strong: #cfccc2;
+  --text: #1f1f1d;
+  --text-2: #5f5e5a;
+  --text-3: #8a8880;
+  --purple-bg: #eeedfe; --purple-line: #534ab7; --purple-text: #3c3489;
+  --teal-bg: #e1f5ee;  --teal-line: #0f6e56;  --teal-text: #085041;
+  --coral-bg: #faece7; --coral-line: #993c1d; --coral-text: #712b13;
+  --gray-bg: #f1efe8;  --gray-line: #5f5e5a;  --gray-text: #444441;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+}
+.wrap { max-width: 900px; margin: 0 auto; padding: 40px 24px 80px; }
+header { border-bottom: 1px solid var(--border); padding-bottom: 20px; margin-bottom: 4px; }
+h1 { font-size: 24px; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.01em; }
+.sub { color: var(--text-2); font-size: 15px; margin: 0; }
+.meta { color: var(--text-3); font-size: 13px; margin: 10px 0 0; }
+.tabs { display: flex; gap: 4px; margin: 24px 0 28px; border-bottom: 1px solid var(--border); }
+.tab {
+  appearance: none; background: none; border: none; cursor: pointer;
+  font: inherit; font-size: 15px; color: var(--text-2);
+  padding: 10px 16px; border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.tab:hover { color: var(--text); }
+.tab[aria-selected="true"] { color: var(--text); font-weight: 500; border-bottom-color: var(--purple-line); }
+.panel[hidden] { display: none; }
+h2 { font-size: 19px; font-weight: 600; margin: 40px 0 4px; letter-spacing: -0.01em; }
+h2:first-child { margin-top: 0; }
+h3 { font-size: 15px; font-weight: 600; margin: 28px 0 10px; }
+p { margin: 0 0 14px; }
+.lead { color: var(--text-2); margin-bottom: 24px; }
+.step { border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 16px; background: var(--bg); }
+.step-head { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 4px; }
+.step-name { font-size: 17px; font-weight: 600; }
+.tags { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.pill { font-size: 12.5px; padding: 3px 11px; border-radius: 999px; white-space: nowrap; font-weight: 500; }
+.pill.mem { background: var(--gray-bg); color: var(--gray-text); }
+.pill.db { background: var(--teal-bg); color: var(--teal-text); }
+.chip { font-family: var(--mono); font-size: 12.5px; color: var(--text-2); border: 1px solid var(--border-strong); border-radius: 6px; padding: 2px 8px; }
+.cap { font-size: 13.5px; color: var(--text-2); margin: 18px 0 8px; }
+.cap code, .note code, p code { font-family: var(--mono); font-size: 0.92em; background: var(--surface); padding: 1px 5px; border-radius: 4px; }
+.scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: 12.5px; }
+th {
+  text-align: left; padding: 8px 12px; background: var(--surface);
+  border-bottom: 1px solid var(--border-strong); font-weight: 600; white-space: nowrap;
+  position: sticky; top: 0;
+}
+th .ty { display: block; font-family: var(--mono); font-size: 11.5px; color: var(--text-3); font-weight: 400; margin-top: 1px; }
+td { padding: 8px 12px; border-bottom: 1px solid var(--border); font-family: var(--mono); white-space: nowrap; vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+th:first-child, td:first-child { position: sticky; left: 0; background: var(--bg); border-right: 1px solid var(--border); }
+th:first-child { background: var(--surface); z-index: 2; }
+.comment { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--text-2); white-space: normal; min-width: 220px; }
+.null { color: var(--text-3); font-style: italic; }
+.hl { background: var(--teal-bg); color: var(--teal-text); font-weight: 500; }
+.dots td { color: var(--text-3); }
+.note { font-size: 13.5px; color: var(--text-2); margin: 14px 0 0; }
+.svgbox { border: 1px solid var(--border); border-radius: 14px; padding: 20px 8px; background: var(--bg); }
+svg { display: block; width: 100%; height: auto; }
+.t { font-size: 14px; fill: var(--text); }
+.ts { font-size: 12px; fill: var(--text-2); }
+.th2 { font-size: 14px; font-weight: 500; fill: var(--text); }
+.n-purple rect { fill: var(--purple-bg); stroke: var(--purple-line); }
+.n-purple .th2 { fill: var(--purple-text); } .n-purple .ts { fill: var(--purple-line); }
+.n-teal rect { fill: var(--teal-bg); stroke: var(--teal-line); }
+.n-teal .th2 { fill: var(--teal-text); } .n-teal .ts { fill: var(--teal-line); }
+.n-coral rect { fill: var(--coral-bg); stroke: var(--coral-line); }
+.n-coral .th2 { fill: var(--coral-text); } .n-coral .ts { fill: var(--coral-line); }
+.n-gray rect { fill: var(--gray-bg); stroke: var(--gray-line); }
+.n-gray .th2 { fill: var(--gray-text); } .n-gray .ts { fill: var(--gray-line); }
+.legend { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 18px; font-size: 13px; color: var(--text-2); }
+.legend span { display: flex; align-items: center; gap: 7px; }
+.sw { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--border); color: var(--text-3); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>wiki-embeddings</h1>
+  <p class="sub">Indexation sémantique du wiki Triple Performance — détection de doublons, socle pour la recommandation d'articles.</p>
+  <p class="meta">Document de conception · brouillon · septembre 2026</p>
+</header>
+
+<div class="tabs" role="tablist">
+  <button class="tab" role="tab" id="tab-pipeline" aria-controls="panel-pipeline" aria-selected="true">Pipeline</button>
+  <button class="tab" role="tab" id="tab-data" aria-controls="panel-data" aria-selected="false">Structure des données</button>
+</div>
+
+<section class="panel" id="panel-pipeline" role="tabpanel" aria-labelledby="tab-pipeline">
+  <p class="lead">Où tourne quoi, et quelle étape lit ou écrit dans quel stockage. Le wiki et le navigateur sont extérieurs à l'environnement Docker ; tout le reste est interne et non exposé.</p>
+
+  <div class="legend">
+    <span><i class="sw" style="background:var(--gray-bg); border:1px solid var(--gray-line)"></i> orchestration, extérieur</span>
+    <span><i class="sw" style="background:var(--purple-bg); border:1px solid var(--purple-line)"></i> traitement</span>
+    <span><i class="sw" style="background:var(--coral-bg); border:1px solid var(--coral-line)"></i> analyse</span>
+    <span><i class="sw" style="background:var(--teal-bg); border:1px solid var(--teal-line)"></i> stockage</span>
+  </div>
+
+  <div class="svgbox">
+  <svg viewBox="0 0 680 842" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title>Architecture du projet wiki-embeddings</title>
+  <desc>L'environnement Docker contient n8n, l'application Python découpée en traitement et analyse, PostgreSQL et Qdrant. Le wiki et le navigateur sont extérieurs.</desc>
+  <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10" fill="none" stroke="#8a8880" stroke-width="1.6"/></marker></defs>
+
+  <g class="n-gray"><rect x="460" y="70" width="180" height="48" rx="6" stroke-width="1"/><text class="th2" x="550" y="92" text-anchor="middle">Wiki</text><text class="ts" x="550" y="110" text-anchor="middle">source du contenu</text></g>
+
+  <rect x="40" y="150" width="600" height="582" rx="14" fill="none" stroke="#cfccc2" stroke-dasharray="6 4"/>
+  <text class="t" x="56" y="172">Environnement Docker</text>
+
+  <g class="n-gray"><rect x="60" y="180" width="140" height="42" rx="6" stroke-width="1"/><text class="th2" x="130" y="200" text-anchor="middle">n8n</text><text class="ts" x="130" y="216" text-anchor="middle">planificateur</text></g>
+
+  <g class="n-teal"><rect x="40" y="250" width="100" height="450" rx="6" stroke-width="1"/><text class="th2" x="90" y="278" text-anchor="middle">PostgreSQL</text><text class="ts" x="90" y="296" text-anchor="middle">données</text></g>
+
+  <g class="n-teal"><rect x="540" y="470" width="100" height="100" rx="6" stroke-width="1"/><text class="th2" x="590" y="512" text-anchor="middle">Qdrant</text><text class="ts" x="590" y="530" text-anchor="middle">vecteurs</text></g>
+
+  <rect x="230" y="250" width="220" height="450" rx="10" fill="none" stroke="#cfccc2"/>
+  <text class="t" x="340" y="272" text-anchor="middle">Application Python</text>
+
+  <rect x="234" y="286" width="212" height="266" rx="8" fill="none" stroke="#e5e3dc"/>
+  <text class="ts" x="244" y="302">traitement</text>
+
+  <g class="n-purple"><rect x="240" y="310" width="200" height="40" rx="6" stroke-width="1"/><text class="th2" x="340" y="327" text-anchor="middle">Pages modifiées</text><text class="ts" x="340" y="343" text-anchor="middle">depuis le dernier run</text></g>
+  <g class="n-purple"><rect x="240" y="358" width="200" height="40" rx="6" stroke-width="1"/><text class="th2" x="340" y="375" text-anchor="middle">Extraction</text><text class="ts" x="340" y="391" text-anchor="middle">texte source et propriétés</text></g>
+  <g class="n-purple"><rect x="240" y="406" width="200" height="40" rx="6" stroke-width="1"/><text class="th2" x="340" y="423" text-anchor="middle">Construction des unités</text><text class="ts" x="340" y="439" text-anchor="middle">découpage en sections</text></g>
+  <g class="n-purple"><rect x="240" y="454" width="200" height="40" rx="6" stroke-width="1"/><text class="th2" x="340" y="471" text-anchor="middle">Diff par hash</text><text class="ts" x="340" y="487" text-anchor="middle">seulement ce qui a changé</text></g>
+  <g class="n-purple"><rect x="240" y="502" width="200" height="40" rx="6" stroke-width="1"/><text class="th2" x="340" y="519" text-anchor="middle">Vectorisation</text><text class="ts" x="340" y="535" text-anchor="middle">un vecteur par unité</text></g>
+
+  <rect x="234" y="562" width="212" height="122" rx="8" fill="none" stroke="#e5e3dc"/>
+  <text class="ts" x="244" y="578">analyse</text>
+
+  <g class="n-coral"><rect x="240" y="586" width="200" height="40" rx="6" stroke-width="1"/><text class="th2" x="340" y="603" text-anchor="middle">Recherche de voisins</text><text class="ts" x="340" y="619" text-anchor="middle">unités les plus proches</text></g>
+  <g class="n-coral"><rect x="240" y="634" width="200" height="40" rx="6" stroke-width="1"/><text class="th2" x="340" y="651" text-anchor="middle">Agrégation, exclusions</text><text class="ts" x="340" y="667" text-anchor="middle">score par paire de pages</text></g>
+
+  <path d="M130 222 L130 238 L340 238 L340 250" fill="none" stroke="#8a8880" stroke-width="1.5" marker-end="url(#ah)"/>
+  <text class="ts" x="200" y="232">déclenche</text>
+
+  <path d="M444 378 L550 378 L550 122" fill="none" stroke="#8a8880" stroke-width="1.5" marker-end="url(#ah)"/>
+  <text class="ts" x="558" y="300">lit</text>
+
+  <path d="M236 330 L144 330" fill="none" stroke="#8a8880" stroke-width="1.5" marker-end="url(#ah)"/>
+  <text class="ts" x="181" y="324">lit</text>
+  <path d="M236 378 L144 378" fill="none" stroke="#8a8880" stroke-width="1.5" marker-end="url(#ah)"/>
+  <text class="ts" x="173" y="372">écrit</text>
+  <path d="M236 462 L144 462" fill="none" stroke="#8a8880" stroke-width="1.5" marker-end="url(#ah)"/>
+  <text class="ts" x="181" y="457">lit</text>
+  <path d="M236 486 L144 486" fill="none" stroke="#8a8880" stroke-width="1.5" marker-end="url(#ah)"/>
+  <text class="ts" x="173" y="481">écrit</text>
+  <path d="M236 654 L144 654" fill="none" stroke="#8a8880" stroke-width="1.5" marker-end="url(#ah)"/>
+  <text class="ts" x="173" y="648">écrit</text>
+
+  <path d="M444 474 L495 474 L495 494 L534 494" fill="none" stroke="#8a8880" stroke-width="1.5" marker-end="url(#ah)"/>
+  <text class="ts" x="452" y="468">purge</text>
+  <path d="M444 522 L534 522" fill="none" stroke="#8a8880" stroke-width="1.5" marker-end="url(#ah)"/>
+  <text class="ts" x="470" y="516">écrit</text>
+  <path d="M444 606 L495 606 L495 550 L534 550" fill="none" stroke="#8a8880" stroke-width="1.5" marker-end="url(#ah)"/>
+  <text class="ts" x="452" y="600">interroge</text>
+
+  <g class="n-gray"><rect x="200" y="762" width="280" height="50" rx="6" stroke-width="1"/><text class="th2" x="340" y="785" text-anchor="middle">Navigateur</text><text class="ts" x="340" y="803" text-anchor="middle">page de revue, intervention humaine</text></g>
+
+  <path d="M310 700 L310 762" fill="none" stroke="#8a8880" stroke-width="1.5" marker-end="url(#ah)"/>
+  <text class="ts" x="302" y="735" text-anchor="end">affiche</text>
+  <path d="M370 762 L370 700" fill="none" stroke="#8a8880" stroke-width="1.5" marker-end="url(#ah)"/>
+  <text class="ts" x="378" y="735">statut</text>
+  </svg>
+  </div>
+
+  <h3>Comment lire les flèches</h3>
+  <p>Le verbe décrit ce que fait l'application, et la flèche va du sujet vers le complément : « l'application lit PostgreSQL » se lit donc de l'étape vers la base, dans le sens de la flèche.</p>
+
+  <h3>Deux filtres, deux économies différentes</h3>
+  <p><strong>Pages modifiées</strong> évite de retélécharger les pages inchangées. <strong>Diff par hash</strong> évite de recalculer les vecteurs des sections inchangées. Le premier filtre au niveau de la page avant tout appel réseau, le second au niveau de la section avant tout appel au modèle.</p>
+
+  <h3>Ce qui reste hors de l'environnement</h3>
+  <p>Seuls le wiki, en lecture seule, et le navigateur qui consulte la page de revue. Qdrant, PostgreSQL et le service lui-même ne sont pas exposés publiquement.</p>
+</section>
+
+<section class="panel" id="panel-data" role="tabpanel" aria-labelledby="tab-data" hidden>
+  <p class="lead">Ce que chaque étape produit, sous quelle forme, et où c'est stocké. Les exemples suivent une page réelle du wiki, <em>Ferme Biji Biji</em>. Les tableaux se font défiler horizontalement ; la première colonne reste visible.</p>
+
+  <div class="step">
+    <div class="step-head"><div class="step-name">1. Pages modifiées</div><div class="tags"><span class="pill mem">en mémoire</span></div></div>
+    <div class="cap">Les pages créées ou modifiées depuis le dernier run, avec leur numéro de révision — <code>list[tuple[bigint, bigint]]</code></div>
+    <div class="scroll"><table>
+      <thead><tr><th>page_id<span class="ty">bigint</span></th><th>revision_id<span class="ty">bigint</span></th><th>ce que ça désigne<span class="ty">commentaire</span></th></tr></thead>
+      <tbody>
+        <tr><td>4271</td><td>142172</td><td class="comment">Ferme Biji Biji, dans sa version actuelle</td></tr>
+        <tr><td>8802</td><td>139004</td><td class="comment">Ferme des Quatre Vents</td></tr>
+        <tr class="dots"><td>…</td><td>…</td><td class="comment">…</td></tr>
+      </tbody>
+    </table></div>
+    <div class="cap">Les pages supprimées ou renommées, issues du journal du wiki — <code>list[bigint]</code></div>
+    <div class="scroll"><table>
+      <thead><tr><th>page_id<span class="ty">bigint</span></th><th>ce que ça désigne<span class="ty">commentaire</span></th></tr></thead>
+      <tbody>
+        <tr><td>5310</td><td class="comment">page effacée du wiki, ses unités doivent être purgées</td></tr>
+        <tr class="dots"><td>…</td><td class="comment">…</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note">Deux listes distinctes. Les suppressions n'apparaissent pas comme des modifications : ce sont des entrées de journal, à récupérer séparément.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-name">2. Extraction</div><div class="tags"><span class="chip">pages</span><span class="pill db">PostgreSQL</span></div></div>
+    <div class="scroll"><table>
+      <thead><tr>
+        <th>page_id<span class="ty">bigint PK</span></th>
+        <th>title<span class="ty">text</span></th>
+        <th>url<span class="ty">text</span></th>
+        <th>lang<span class="ty">text</span></th>
+        <th>namespace<span class="ty">int</span></th>
+        <th>is_redirect<span class="ty">boolean</span></th>
+        <th>revision_id<span class="ty">bigint</span></th>
+        <th>wikitext<span class="ty">text</span></th>
+        <th>properties<span class="ty">jsonb</span></th>
+        <th>langlinks<span class="ty">jsonb</span></th>
+        <th>last_seen_at<span class="ty">timestamptz</span></th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td>4271</td><td>Ferme Biji Biji</td><td>…/wiki/Ferme_Biji_Biji</td><td>fr</td><td>0</td><td>false</td><td>142172</td>
+          <td>{{Infobox ferme|surface=0.8…</td>
+          <td>{"production": ["Maraîchage"], "surface_ha": 0.8, "sol": "Limon très fin"}</td>
+          <td>{"en": "Biji Biji Farm"}</td><td>2026-09-08 10:12+00</td>
+        </tr>
+        <tr class="dots"><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note">Une ligne par page, en upsert. Le <code>wikitext</code> brut est conservé pour pouvoir re-découper le corpus sans le retélécharger. Les propriétés Semantic MediaWiki vont en <code>jsonb</code> parce qu'elles varient selon le type de page.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-name">3. Construction des unités</div><div class="tags"><span class="pill mem">en mémoire</span></div></div>
+    <div class="scroll"><table>
+      <thead><tr>
+        <th>unit_id<span class="ty">uuid PK</span></th>
+        <th>page_id<span class="ty">bigint FK</span></th>
+        <th>unit_type<span class="ty">text</span></th>
+        <th>unit_index<span class="ty">int</span></th>
+        <th>heading<span class="ty">text</span></th>
+        <th>text<span class="ty">text</span></th>
+        <th>content_hash<span class="ty">text</span></th>
+        <th>token_count<span class="ty">int</span></th>
+        <th>embedded_at<span class="ty">timestamptz</span></th>
+        <th>model_name<span class="ty">text</span></th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td>3f9a2c…</td><td>4271</td><td>section</td><td>1</td><td>Engrais verts</td>
+          <td>Engrais verts. Les engrais verts sont implantés après…</td>
+          <td>81b4e7…</td><td>312</td><td class="null">NULL</td><td class="null">NULL</td>
+        </tr>
+        <tr class="dots"><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note">Les unités ont déjà leur forme finale mais ne sont pas encore écrites : l'étape suivante doit les comparer à ce qui est en base. <code>unit_id</code> vaut <code>uuid5(page_id + content_hash + occurrence)</code> — l'identité vient du contenu, jamais de la position.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-name">4. Diff par hash</div><div class="tags"><span class="chip">units</span><span class="pill db">PostgreSQL</span><span class="pill db">Qdrant</span></div></div>
+    <div class="cap">Comparaison de deux ensembles d'identifiants, pour la seule page 4271 — <code>set[uuid]</code></div>
+    <div class="scroll"><table>
+      <thead><tr><th>en mémoire<span class="ty">set[uuid]</span></th><th>en base<span class="ty">set[uuid]</span></th><th>conclusion<span class="ty">commentaire</span></th></tr></thead>
+      <tbody>
+        <tr><td>3f9a2c…</td><td class="null">absent</td><td class="comment">nouvelle unité, à vectoriser</td></tr>
+        <tr><td>c07d12…</td><td>c07d12…</td><td class="comment">texte identique, index 2 → 3 : déplacée, pas de recalcul</td></tr>
+        <tr><td class="null">absent</td><td>9de501…</td><td class="comment">disparue : ligne supprimée, point purgé de Qdrant</td></tr>
+        <tr class="dots"><td>…</td><td>…</td><td class="comment">…</td></tr>
+      </tbody>
+    </table></div>
+    <div class="cap">Table <span class="chip">units</span> après écriture</div>
+    <div class="scroll"><table>
+      <thead><tr>
+        <th>unit_id<span class="ty">uuid</span></th><th>page_id<span class="ty">bigint</span></th><th>unit_type<span class="ty">text</span></th>
+        <th>unit_index<span class="ty">int</span></th><th>heading<span class="ty">text</span></th><th>content_hash<span class="ty">text</span></th>
+        <th>token_count<span class="ty">int</span></th><th>embedded_at<span class="ty">timestamptz</span></th><th>model_name<span class="ty">text</span></th>
+      </tr></thead>
+      <tbody>
+        <tr><td>3f9a2c…</td><td>4271</td><td>section</td><td>1</td><td>Engrais verts</td><td>81b4e7…</td><td>312</td><td class="hl">NULL</td><td class="hl">NULL</td></tr>
+        <tr class="dots"><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note">Le <code>NULL</code> est significatif : il marque le travail restant. Après un incident, il suffit de reprendre toutes les unités où <code>embedded_at IS NULL</code> — aucun mécanisme de reprise dédié n'est nécessaire.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-name">5. Vectorisation</div><div class="tags"><span class="chip">wiki_units_3small_1536</span><span class="pill db">Qdrant</span><span class="pill db">PostgreSQL</span></div></div>
+    <div class="cap">Le point écrit dans Qdrant</div>
+    <div class="scroll"><table>
+      <thead><tr><th>id<span class="ty">uuid</span></th><th>vector<span class="ty">float[1536]</span></th><th>payload<span class="ty">json</span></th></tr></thead>
+      <tbody>
+        <tr><td>3f9a2c…</td><td>[0.021, -0.118, 0.334, …]</td><td>{ page_id: 4271, unit_type: "section", lang: "fr", page_type: "Retour d'expérience", production: ["Maraîchage"] }</td></tr>
+        <tr class="dots"><td>…</td><td>…</td><td>…</td></tr>
+      </tbody>
+    </table></div>
+    <div class="cap">Puis mise à jour de <span class="chip">units</span></div>
+    <div class="scroll"><table>
+      <thead><tr>
+        <th>unit_id<span class="ty">uuid</span></th><th>page_id<span class="ty">bigint</span></th><th>unit_index<span class="ty">int</span></th>
+        <th>content_hash<span class="ty">text</span></th><th>embedded_at<span class="ty">timestamptz</span></th><th>model_name<span class="ty">text</span></th>
+      </tr></thead>
+      <tbody>
+        <tr><td>3f9a2c…</td><td>4271</td><td>1</td><td>81b4e7…</td><td class="hl">2026-09-08 10:14+00</td><td class="hl">text-embedding-3-small</td></tr>
+        <tr class="dots"><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note">Qdrant d'abord, PostgreSQL ensuite. Dans l'ordre inverse, une interruption entre les deux marquerait comme fait un vecteur qui n'existe pas, et il serait perdu silencieusement.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-name">6. Recherche de voisins</div><div class="tags"><span class="pill mem">en mémoire</span></div></div>
+    <div class="cap">Pour chaque unité interrogée, ses voisines au-dessus du seuil — <code>list[tuple[uuid, uuid, float]]</code></div>
+    <div class="scroll"><table>
+      <thead><tr><th>unité source<span class="ty">uuid</span></th><th>unité voisine<span class="ty">uuid</span></th><th>score<span class="ty">float</span></th><th>ce que ça désigne<span class="ty">commentaire</span></th></tr></thead>
+      <tbody>
+        <tr><td>3f9a2c…</td><td>a91c04…</td><td>0.91</td><td class="comment">section « Engrais verts » d'une autre ferme</td></tr>
+        <tr><td>3f9a2c…</td><td>4f0288…</td><td>0.88</td><td class="comment">section proche sur une troisième page</td></tr>
+        <tr class="dots"><td>…</td><td>…</td><td>…</td><td class="comment">…</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note">Les paires symétriques ne sont pas dédoublonnées ici : l'index étant approximatif, garder les deux directions améliore le rappel. La normalisation se fait à l'écriture.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-name">7. Agrégation et exclusions</div><div class="tags"><span class="chip">duplicate_candidates</span><span class="chip">candidate_evidence</span><span class="pill db">PostgreSQL</span></div></div>
+    <div class="scroll"><table>
+      <thead><tr>
+        <th>candidate_id<span class="ty">bigint PK</span></th><th>page_a<span class="ty">bigint FK</span></th><th>page_b<span class="ty">bigint FK</span></th>
+        <th>score<span class="ty">real</span></th><th>status<span class="ty">text</span></th><th>model_name<span class="ty">text</span></th>
+        <th>run_id<span class="ty">bigint FK</span></th><th>first_seen_at<span class="ty">timestamptz</span></th><th>updated_at<span class="ty">timestamptz</span></th>
+      </tr></thead>
+      <tbody>
+        <tr><td>19</td><td>4271</td><td>8802</td><td>0.91</td><td>nouveau</td><td>text-embedding-3-small</td><td>87</td><td>2026-09-08 10:15+00</td><td>2026-09-08 10:15+00</td></tr>
+        <tr class="dots"><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td></tr>
+      </tbody>
+    </table></div>
+    <div class="cap">Table <span class="chip">candidate_evidence</span> — les unités qui expliquent le score</div>
+    <div class="scroll"><table>
+      <thead><tr><th>candidate_id<span class="ty">bigint FK</span></th><th>unit_a<span class="ty">uuid</span></th><th>unit_b<span class="ty">uuid</span></th><th>score<span class="ty">real</span></th></tr></thead>
+      <tbody>
+        <tr><td>19</td><td>3f9a2c…</td><td>a91c04…</td><td>0.91</td></tr>
+        <tr class="dots"><td>…</td><td>…</td><td>…</td><td>…</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note">Contrainte en base : <code>page_a &lt; page_b</code> et unicité de la paire, ce qui empêche de stocker la même paire dans les deux sens. Le <code>status</code> survit aux exécutions suivantes — le score est remis à jour, la décision humaine est conservée.</p>
+  </div>
+
+  <h2>Tables de suivi</h2>
+  <p class="lead">Elles ne portent pas de contenu, mais permettent de savoir ce qui s'est passé et d'alimenter la page de statut.</p>
+
+  <div class="step">
+    <div class="step-head"><div class="step-name">runs</div><div class="tags"><span class="pill db">PostgreSQL</span></div></div>
+    <div class="scroll"><table>
+      <thead><tr>
+        <th>run_id<span class="ty">bigint PK</span></th><th>started_at<span class="ty">timestamptz</span></th><th>finished_at<span class="ty">timestamptz</span></th>
+        <th>watermark<span class="ty">timestamptz</span></th><th>pages_scanned<span class="ty">int</span></th><th>units_created<span class="ty">int</span></th>
+        <th>units_embedded<span class="ty">int</span></th><th>status<span class="ty">text</span></th>
+      </tr></thead>
+      <tbody>
+        <tr><td>87</td><td>2026-09-08 10:10+00</td><td>2026-09-08 10:16+00</td><td>2026-09-06 10:10+00</td><td>42</td><td>118</td><td>118</td><td>success</td></tr>
+        <tr class="dots"><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note">Le curseur du prochain run se déduit d'ici — pas de table dédiée, donc pas de risque de divergence. Il n'avance que si <code>status</code> vaut <code>success</code>.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-name">run_errors</div><div class="tags"><span class="pill db">PostgreSQL</span></div></div>
+    <div class="scroll"><table>
+      <thead><tr>
+        <th>error_id<span class="ty">bigint PK</span></th><th>run_id<span class="ty">bigint FK</span></th><th>page_id<span class="ty">bigint</span></th>
+        <th>step<span class="ty">text</span></th><th>message<span class="ty">text</span></th><th>occurred_at<span class="ty">timestamptz</span></th>
+      </tr></thead>
+      <tbody>
+        <tr><td>4</td><td>87</td><td>5122</td><td>extraction</td><td>timeout sur l'API MediaWiki</td><td>2026-09-08 10:12+00</td></tr>
+        <tr class="dots"><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note">Les logs applicatifs restent sur la sortie standard et sont éphémères. Ce qui doit pouvoir être interrogé plus tard, ou affiché dans une interface, vit dans une table.</p>
+  </div>
+</section>
+
+<footer>
+  Document de travail — les choix présentés ici sont susceptibles d'évoluer, notamment sur les seuils, qui seront établis par une phase de calibration sur un jeu de paires annotées.
+</footer>
+
+</div>
+<script>
+var tabs = document.querySelectorAll('.tab');
+for (var i = 0; i < tabs.length; i++) {
+  tabs[i].addEventListener('click', function (e) {
+    for (var j = 0; j < tabs.length; j++) {
+      var selected = tabs[j] === e.currentTarget;
+      tabs[j].setAttribute('aria-selected', selected ? 'true' : 'false');
+      document.getElementById(tabs[j].getAttribute('aria-controls')).hidden = !selected;
+    }
+  });
+}
+</script>
+</body>
+</html>
