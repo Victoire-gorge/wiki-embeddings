@@ -270,6 +270,27 @@ régulièrement ou doit apparaître dans une interface, c'est une table.
 - Les contraintes d'intégrité vivent **en base** (`CHECK`, unicité, clés étrangères), pas
   seulement dans le code.
 
+### Messages de commit
+
+Convention **Conventional Commits** : `type: description` en résumé, description à l'impératif
+présent, en minuscule, sans point final. Le corps du message explique le *pourquoi* si ce n'est
+pas évident.
+
+| type | usage |
+|---|---|
+| `feat` | nouvelle fonctionnalité (version mineure en SemVer) |
+| `fix` | correction de bogue (version patch) |
+| `docs` | documentation uniquement |
+| `style` | formatage, espacements — aucun impact sur le comportement |
+| `refactor` | remaniement sans correction ni ajout de fonctionnalité |
+| `test` | ajout ou correction de tests |
+| `perf` | amélioration des performances |
+| `build`, `ci` | système de build, dépendances, intégration continue |
+| `chore` | tâche de maintenance sans effet sur le code applicatif |
+
+D'autres types sont admis s'ils clarifient l'intention. Un changement incompatible se marque par
+`!` après le type (`feat!:`) ou une ligne `BREAKING CHANGE:` dans le corps.
+
 ## Commandes
 
 À compléter au fur et à mesure.
