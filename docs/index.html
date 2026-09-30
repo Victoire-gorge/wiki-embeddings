@@ -75,6 +75,21 @@ th:first-child { background: var(--surface); z-index: 2; }
 .hl { background: var(--teal-bg); color: var(--teal-text); font-weight: 500; }
 .dots td { color: var(--text-3); }
 .note { font-size: 13.5px; color: var(--text-2); margin: 14px 0 0; }
+.decision { border: 1px solid var(--border-strong); border-radius: 14px; margin-bottom: 16px; background: var(--surface); }
+.decision > summary { list-style: none; cursor: pointer; padding: 18px 22px; display: flex; align-items: center; gap: 14px; }
+.decision > summary::-webkit-details-marker { display: none; }
+.decision > summary:hover .chev { color: var(--text-2); }
+.dec-txt { flex: 1; }
+.kicker { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--purple-line); font-weight: 600; margin-bottom: 3px; }
+.dec-title { display: block; font-size: 17px; font-weight: 600; color: var(--text); }
+.chev { color: var(--text-3); font-size: 15px; line-height: 1; transition: transform 0.15s ease; }
+.decision[open] .chev { transform: rotate(90deg); }
+.dec-body { padding: 4px 22px 20px; }
+.dec-body h3 { margin-top: 22px; }
+.dec-body h3:first-of-type { margin-top: 4px; }
+.dec-body p { font-size: 14px; color: var(--text-2); }
+.dec-body ul { margin: 0 0 14px; padding-left: 20px; font-size: 14px; color: var(--text-2); }
+.dec-body li { margin-bottom: 7px; }
 .svgbox { border: 1px solid var(--border); border-radius: 14px; padding: 20px 8px; background: var(--bg); }
 svg { display: block; width: 100%; height: auto; }
 .t { font-size: 14px; fill: var(--text); }
@@ -276,6 +291,82 @@ footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--border
     </table></div>
     <p class="note">Les unités ont déjà leur forme finale mais ne sont pas encore écrites : l'étape suivante doit les comparer à ce qui est en base. <code>unit_id</code> vaut <code>uuid5(page_id + content_hash + occurrence)</code> — l'identité vient du contenu, jamais de la position.</p>
   </div>
+
+  <details class="decision">
+    <summary>
+      <span class="dec-txt">
+        <span class="kicker">Décision</span>
+        <span class="dec-title">L'infobox n'est pas vectorisée</span>
+      </span>
+      <span class="chev" aria-hidden="true">▸</span>
+    </summary>
+    <div class="dec-body">
+    <p>Chaque page porte un bloc de propriétés structurées — production, surface, département,
+    type de sol, certification. On aurait pu en faire une unité supplémentaire, en sérialisant ces
+    valeurs en texte. Ce n'est pas ce qui a été retenu : ces propriétés alimentent le payload
+    comme champs filtrables, et rien d'autre.</p>
+
+    <h3>Ce que la vectorisation aurait posé comme problèmes</h3>
+    <ul>
+      <li><strong>Les libellés pèsent autant que les valeurs.</strong> Dans « Production :
+      maraîchage. Certification : agriculture biologique. Surface : 0,8 hectare », les mots
+      <em>production</em>, <em>certification</em> et <em>surface</em> occupent une part
+      importante des tokens — et ils sont identiques sur toutes les fiches. Contrairement à une
+      recherche par mots-clés, un modèle d'embeddings n'a aucun mécanisme pour dévaluer un terme
+      fréquent : chaque token contribue au vecteur final.</li>
+      <li><strong>Toutes les infobox se ressembleraient entre elles.</strong> Conséquence directe
+      du point précédent : dans une détection de doublons, chaque paire d'infobox de même type
+      dépasserait le seuil. On produirait des milliers de faux positifs, tous de la même nature.</li>
+      <li><strong>Les valeurs numériques n'apportent rien au vecteur.</strong> Les modèles
+      d'embeddings ne représentent pas les grandeurs : « 0,8 hectare » et « 80 hectares »
+      produisent des vecteurs presque identiques. Le nombre occupe des tokens sans porter
+      d'information exploitable.</li>
+      <li><strong>Le vecteur serait court et instable.</strong> Une infobox fait trente à
+      quarante tokens. Les textes courts produisent des vecteurs plus sensibles au bruit, avec des
+      scores de similarité globalement plus élevés — donc un seuil encore différent à calibrer.</li>
+    </ul>
+
+    <h3>Pourquoi ce n'est pas une perte</h3>
+    <p>L'information n'est pas jetée, elle change de rôle. Elle devient un <strong>filtre exact</strong>
+    au lieu d'une approximation vectorielle. Un filtre « production = maraîchage et certification =
+    agriculture biologique » est déterministe, gratuit et sans faux positif, là où un vecteur
+    n'aurait donné qu'une proximité.</p>
+    <p>C'est particulièrement vrai pour les grandeurs : une requête « fermes entre 0,5 et 2
+    hectares » est triviale en base et hors de portée d'un embedding. Et la question que l'infobox
+    était censée servir — « petite ferme maraîchère bio en Bretagne » — est par nature une requête
+    à facettes, pas une requête sémantique.</p>
+
+    <h3>Les garde-fous</h3>
+    <ul>
+      <li><strong>Aucune décision automatique.</strong> Le pipeline propose des candidats, un
+      humain tranche. Une information absente du vecteur ne produit donc jamais une erreur en
+      base — au pire une paire non proposée.</li>
+      <li><strong>Le schéma reste ouvert.</strong> Le champ <code>unit_type</code> existe déjà :
+      ajouter des unités de type <code>infobox</code> plus tard ne demande aucune migration.</li>
+      <li><strong>La décision est traitée comme une hypothèse à tester.</strong> Le jeu annoté
+      doit contenir des paires dont le rapprochement dépendrait du contexte d'exploitation. Si on
+      les rate, on saura qu'il faut réintroduire cette unité — avec une mesure à l'appui.</li>
+    </ul>
+
+    <h3>Les risques assumés</h3>
+    <ul>
+      <li><strong>Les sections perdent leur contexte d'exploitation.</strong> Une section
+      « engrais verts » d'une ferme maraîchère bretonne et celle d'une exploitation céréalière
+      beauceronne auront des vecteurs proches, alors que leur pertinence pratique diffère
+      radicalement. Sans conséquence pour la détection de doublons — c'est même le comportement
+      voulu — mais ce sera un vrai sujet pour la recommandation, où la réponse sera un filtre et
+      non un vecteur.</li>
+      <li><strong>Les propriétés en texte libre deviennent inatteignables sémantiquement.</strong>
+      Si une propriété Semantic MediaWiki contient une description rédigée plutôt qu'une valeur
+      catégorielle, elle ne sera accessible que par correspondance exacte. À vérifier lors de
+      l'inventaire des propriétés réellement présentes sur le wiki.</li>
+      <li><strong>Une recherche en langage naturel demanderait un travail supplémentaire.</strong>
+      Le jour où une barre de recherche libre serait ouverte, « petite ferme bio en Bretagne » ne
+      trouverait rien tant que la requête n'est pas traduite en filtres — ce qui suppose une étape
+      d'extraction d'entités depuis la requête.</li>
+    </ul>
+    </div>
+  </details>
 
   <div class="step">
     <div class="step-head"><div class="step-name">4. Diff par hash</div><div class="tags"><span class="chip">units</span><span class="pill db">PostgreSQL</span><span class="pill db">Qdrant</span></div></div>
