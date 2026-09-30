@@ -1,0 +1,120 @@
+{{Pratique
+| Nom = Système de conduite et architecture de la vigne
+| Image = image_Syst_me_de_conduite_et_architecture_de_la_vigne.jpg
+| ImageCaption = Photo : Conduite de la vigne sur échalas en Côtes-du-Rhône. Crédits: Mayeul Plaige
+| Mots-clés = Taille et conduite de la vigne
+}}
+{{Article issu de Geco
+| url = https://geco.ecophytopic.fr/geco/Concept/Systeme_De_Conduite_Et_Architecture_De_La_Vigne}}
+= 1. Présentation =
+== Caractérisation de la technique ==
+=== Description de la technique : ===
+
+
+La conduite de la [[vigne]] est une méthode de contrôle cultural. Cette technique n’appartient pas directement au domaine de la protection des plantes, mais peut aider à limiter l’apparition et le développement des bio-agresseurs et/ou fournir à la culture les moyens de se défendre.
+
+
+En production viticole, la gestion de la conduite architecturale des ceps, en interaction avec la gestion de la charge en fruits et de la concurrence impactent fortement la vigueur des ceps. Cela influence aussi le développement des bio-agresseurs par la modification du microclimat (aération, durée d’humectation, éclairement) au sein du feuillage et par la dynamique de croissance des organes modulant les périodes de sensibilité ou d’appétence selon le stade de développement. La conduite des ceps modifie également la répartition des organes dans l’espace, ce qui peut influencer le développement de certains ravageurs ([[puceron]] cendré…) ou la propagation des [[maladies]].
+
+
+Les choix du système de conduite (densité de plantation, taille des ceps…) en relation avec la sélection du couple « variété x porte-greffe » sont déterminants pour la gestion de la parcelle viticole. Ces choix sont des éléments clés pour la réussite technico-économique du vignoble, car ils influencent fortement la vitesse d’entrée en production, la régularité des performances agronomiques, la qualité du [[raisin]] et les temps de travaux.
+
+
+'''Période de mise en œuvre '''
+
+
+'''Echelle spatiale de mise en œuvre '''
+
+== Application de la technique à... ==
+== Réglementation ==
+
+
+----
+
+
+= 2. Services rendus par la technique =
+----
+
+
+= 3. Effets sur la durabilité du système de culture =
+== Critères "environnementaux" ==
+== Critères "agronomiques" ==
+== Critères "économiques" ==
+== Critères "sociaux" ==
+
+
+----
+
+
+= 4. Organismes favorisés ou défavorisés =
+== [[Bioagresseurs]] favorisés ==
+{|
+!Organisme
+! class="texte-centre" |Impact de la technique
+! class="texte-centre" |Type
+!Précisions
+|}
+
+== Bioagresseurs défavorisés ==
+{|
+!Organisme
+! class="texte-centre" |Impact de la technique
+! class="texte-centre" |Type
+!Précisions
+|}
+
+== [[Auxiliaires]] favorisés ==
+{|
+!Organisme
+! class="texte-centre" |Impact de la technique
+! class="texte-centre" |Type
+!Précisions
+|}
+
+== [[:Catégorie:Auxiliaires|Auxiliaires]] défavorisés ==
+{|
+!Organisme
+! class="texte-centre" |Impact de la technique
+! class="texte-centre" |Type
+!Précisions
+|}
+
+== Accidents climatiques et physiologiques favorisés ==
+{|
+!Organisme
+! class="texte-centre" |Impact de la technique
+!Précisions
+|}
+
+== Accidents climatiques et physiologiques défavorisés ==
+{|
+!Organisme
+! class="texte-centre" |Impact de la technique
+!Précisions
+|}
+
+
+----
+
+
+= 5. Pour en savoir plus =
+----
+
+
+= 6. Mots clés =
+'''Méthode de contrôle des bioagresseurs : '''
+
+
+'''Mode d'action : '''
+
+
+'''Type de stratégie vis-à-vis de l'utilisation de pesticides : '''
+
+== Annexes ==
+{{Pages liées}}
+{{S'applique aux cultures
+| Vigne}}
+{{Production principale
+| Viticulture}}
+{{#set: Import GECO le = 01/02/2021}}
+[[en:Driving system and architecture of the vine]]
