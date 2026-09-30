@@ -246,9 +246,16 @@ contrainte en base.
 ## Modèle d'unités
 
 - **Schéma homogène**, avec `unit_type` comme discriminant.
-- En v1, `unit_type` vaut toujours `section`. **L'infobox n'est pas vectorisée** : ses valeurs
-  sont catégorielles ou numériques, donc mieux traitées comme filtres. Le champ reste en place
-  pour une évolution ultérieure.
+- En v1, `unit_type` vaut toujours `section`. **L'infobox n'est pas vectorisée, sauf deux champs
+  nommés sur les pages `Vidéo`.** La règle générale reste : valeurs catégorielles ou numériques,
+  donc filtres plutôt que vecteurs (voir `docs/index.html`, section « Décision »). Exception
+  mesurée : une page `Vidéo` (~28 % du corpus, voir `notebooks/01_exploration_xml.ipynb`) n'a
+  presque aucune prose hors de son infobox — son contenu réel (résumé rédigé, transcription
+  automatique) vit dans les paramètres `Résumé` et `Transcription`. Sans extraction ciblée de ces
+  deux champs, ces pages ne produiraient aucune unité, invisibles au dédoublonnage comme à la
+  recommandation. Le reste de l'infobox `Vidéo` (durée, vignette, producteur, id YouTube) reste un
+  filtre, comme pour toute autre page. `unit_type` reste en place si d'autres champs de prose
+  comparables sont identifiés ailleurs.
 - **Pas de vecteur d'article entier.** La similarité entre pages s'obtient par **agrégation par
   maximum** des similarités entre unités — la moyenne noie le cas d'inclusion, qui est le doublon
   le plus fréquent sur un wiki.
