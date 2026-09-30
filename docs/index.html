@@ -336,6 +336,24 @@ footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--border
     était censée servir — « petite ferme maraîchère bio en Bretagne » — est par nature une requête
     à facettes, pas une requête sémantique.</p>
 
+    <h3>Une exception mesurée : les pages <code>Vidéo</code></h3>
+    <p>La règle ci-dessus suppose qu'une page a du texte narratif <em>en dehors</em> de son
+    infobox. Ce n'est pas vrai pour toutes : les pages construites avec le template
+    <code>Vidéo</code> (~28&nbsp;% du corpus mesuré sur le dump XML) n'ont presque aucune prose
+    hors template — leur contenu réel, un résumé rédigé et une transcription automatique du son,
+    vit entièrement dans deux paramètres de ce template. Appliquée sans exception, la règle
+    laisserait ces pages sans aucune unité : invisibles au dédoublonnage comme à la
+    recommandation.</p>
+    <p>Les deux champs <strong>Résumé</strong> et <strong>Transcription</strong> sont donc
+    extraits et traités comme du texte à vectoriser, nettoyé comme n'importe quelle unité
+    (répétitions du sous-titrage automatique, markup résiduel, formules d'ouverture récurrentes).
+    Le reste de l'infobox <code>Vidéo</code> — durée, vignette, producteur, identifiant YouTube —
+    reste un filtre, exactement comme pour les autres pages.</p>
+    <p>Ce n'est pas un retour sur la règle générale, ni un branchement « si page vidéo, alors… »
+    dans le code : c'est l'extraction de deux champs nommés, identifiés par la mesure, traités
+    comme une source de texte au même titre qu'une section d'article. Toute page dont l'infobox
+    contiendrait un champ de prose comparable suivrait la même logique.</p>
+
     <h3>Les garde-fous</h3>
     <ul>
       <li><strong>Aucune décision automatique.</strong> Le pipeline propose des candidats, un
@@ -357,9 +375,10 @@ footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--border
       voulu — mais ce sera un vrai sujet pour la recommandation, où la réponse sera un filtre et
       non un vecteur.</li>
       <li><strong>Les propriétés en texte libre deviennent inatteignables sémantiquement.</strong>
-      Si une propriété Semantic MediaWiki contient une description rédigée plutôt qu'une valeur
-      catégorielle, elle ne sera accessible que par correspondance exacte. À vérifier lors de
-      l'inventaire des propriétés réellement présentes sur le wiki.</li>
+      Risque confirmé, pas seulement théorique : les pages <code>Vidéo</code> portent un résumé
+      rédigé et une transcription dans des paramètres de template, pas dans le corps de l'article.
+      Voir l'exception ci-dessus — extraction ciblée de ces deux champs, plutôt que correspondance
+      exacte uniquement.</li>
       <li><strong>Une recherche en langage naturel demanderait un travail supplémentaire.</strong>
       Le jour où une barre de recherche libre serait ouverte, « petite ferme bio en Bretagne » ne
       trouverait rien tant que la requête n'est pas traduite en filtres — ce qui suppose une étape
