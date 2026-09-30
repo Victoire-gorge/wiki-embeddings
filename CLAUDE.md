@@ -200,6 +200,15 @@ toutes vérifiées **avant** le premier appel à l'API :
 Ces limites sont des constantes lisibles, pas des valeurs enfouies. Elles ne remplacent pas le
 plafond de dépense configuré côté OpenAI, qui reste la seule protection indépendante du code.
 
+**Doublon mécanique (même `content_hash` sur deux pages) : pas de vecteur partagé.** Chaque
+unité passe par l'étape 5 normalement, même si son contenu est identique à celui d'une unité
+d'une autre page. L'alternative existait — copier le vecteur d'une unité « canonique » vers
+l'autre pour épargner un appel API — mais le volume mesuré est faible (quelques dizaines
+d'unités, qui devraient encore diminuer une fois les vrais doublons fusionnés par une personne)
+et partager un vecteur créerait une dépendance entre deux `unit_id` pensés comme indépendants.
+Le doublon reste signalé pour la revue humaine ; ce n'est que le recalcul du vecteur qui n'est
+pas économisé. Choix à revoir si le volume de doublons exacts s'avère nettement plus élevé.
+
 **Le curseur n'avance qu'en cas de run complet réussi**, sinon les pages non traitées ne sont
 jamais rattrapées. Il se déduit de `runs`, sans table dédiée.
 
