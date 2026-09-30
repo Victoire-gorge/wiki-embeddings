@@ -1,0 +1,45 @@
+# Le contexte de build est envoyé au démon Docker : tout ce qui est ici
+# n'est ni transféré, ni copié par COPY.
+
+# Données volumineuses — le dump du wiki fait plusieurs centaines de Mo
+data/
+dumps/
+*.xml
+*.xml.gz
+*.sql
+*.gz
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Historique et documentation
+.git/
+.gitignore
+.github/
+docs/
+*.md
+!README.md
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# Volumes locaux
+postgres_data/
+qdrant_storage/
+.data/
+
+# Éditeurs et système
+.vscode/
+.idea/
+.DS_Store

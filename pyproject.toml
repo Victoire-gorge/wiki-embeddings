@@ -3,18 +3,23 @@ name = "triple-performance-embeddings"
 version = "0.1.0"
 description = "Semantic indexing project for Triple Performance wiki"
 authors = ["Neayi <contact@neayi.com>"]
+packages = [{ include = "app" }]
 
 [tool.poetry.dependencies]
 python = ">=3.12,<3.13"
-psycopg = {version = "^3.12.0", extras = ["binary"]}
 qdrant-client = "^1.10.0"
 openai = "^1.50.0"
 pydantic = "^2.9.0"
+mwparserfromhell = "^0.6.0"
+psycopg = {extras = ["binary"], version = "^3.3.5"}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
 black = "^24.0.0"
 ruff = "^0.6.0"
+jupyter = "^1.1.0"
+pandas = "^2.2.0"
+matplotlib = "^3.9.0"
 
 [build-system]
 requires = ["poetry-core>=1.8.1"]
