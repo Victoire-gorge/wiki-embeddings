@@ -99,7 +99,8 @@ htmlcov/
 # Poetry — le lock est versionné, pas l'environnement
 # (poetry.lock doit être committé)
 
-# Notebooks
+# Notebooks — brouillons d'exploration, pas versionnés
+notebooks/
 .ipynb_checkpoints/
 *.ipynb_checkpoints
 
