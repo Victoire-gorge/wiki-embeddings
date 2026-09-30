@@ -249,7 +249,7 @@ contrainte en base.
 - En v1, `unit_type` vaut toujours `section`. **L'infobox n'est pas vectorisée, sauf deux champs
   nommés sur les pages `Vidéo`.** La règle générale reste : valeurs catégorielles ou numériques,
   donc filtres plutôt que vecteurs (voir `docs/index.html`, section « Décision »). Exception
-  mesurée : une page `Vidéo` (~28 % du corpus, voir `notebooks/01_exploration_xml.ipynb`) n'a
+  mesurée : une page `Vidéo` (~28 % du corpus) n'a
   presque aucune prose hors de son infobox — son contenu réel (résumé rédigé, transcription
   automatique) vit dans les paramètres `Résumé` et `Transcription`. Sans extraction ciblée de ces
   deux champs, ces pages ne produiraient aucune unité, invisibles au dédoublonnage comme à la
