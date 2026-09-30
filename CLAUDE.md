@@ -32,6 +32,16 @@ propre. La vitesse de livraison n'est pas le critère.
 - **Signale les mauvais réflexes courants** quand tu en vois un, même s'il est demandé.
 - Si une décision engage l'architecture, **pose la question** plutôt que de trancher seul.
 
+## Discipline de code
+
+- **Pas d'abstraction ni de configurabilité non demandées.** Le code minimal qui résout le
+  problème posé, rien de spéculatif — sur un projet d'apprentissage, du code sur-ingénierié
+  enseigne de mauvais réflexes.
+- **Diffs chirurgicaux.** Ne pas reformater ou "améliorer" du code adjacent non concerné par la
+  demande. Repérer la dead code existante plutôt que la supprimer sans le signaler.
+- **Critère de vérification avant de considérer une étape terminée.** Pour les transformations
+  pures du pipeline (étapes 1, 3, 6), écrire le test qui la caractérise avant de l'implémenter.
+
 ## Vocabulaire
 
 Un seul terme par concept. Ne pas introduire de synonymes.
@@ -122,6 +132,13 @@ faire tourner deux en parallèle pour les comparer.
 Un point : `id` = `unit_id`, `vector` = float[1536], `payload` = `{page_id, unit_type, lang,
 page_type, production}`.
 
+**La collection déclare dès sa création un emplacement de vecteur sparse**, même si rien ne le
+remplit en v1. Qdrant fige la configuration des vecteurs à la création : déclarer le créneau ne
+coûte rien maintenant, alors que l'ajouter ensuite peut imposer de recréer la collection. Le
+sparse servira à la recherche hybride, utile là où le dense est faible — références, sigles,
+numéros AMM — et parce qu'il pondère par rareté, donc absorbe la ferraille répétée que le dense
+encaisse mal.
+
 **Critère du payload** : uniquement ce sur quoi on filtre *pendant* la recherche. Jamais de
 titre, d'URL ni de texte. Tout ce qu'on affiche vient de PostgreSQL.
 
@@ -168,6 +185,21 @@ hashs distingue nouveau / modifié / déplacé / supprimé. Une unité déplacé
 une interruption marquerait comme fait un vecteur inexistant, perdu silencieusement. Le `NULL`
 sert de mécanisme de reprise : après incident, retraiter tout ce qui a `embedded_at IS NULL`.
 
+**Garde-fous de dépense à l'étape 5.** L'ordre d'écriture ci-dessus privilégie délibérément le
+recalcul à la perte de vecteur — il va donc dans le sens de la dépense. Trois limites obligatoires,
+toutes vérifiées **avant** le premier appel à l'API :
+
+- **Plafond d'unités par run.** Un run incrémental traite quelques dizaines d'unités ; s'il en
+  réclame des milliers, c'est une anomalie. Dépassement du plafond → arrêt, entrée dans
+  `run_errors`, pas de traitement partiel silencieux.
+- **Estimation du coût avant appel.** `SELECT SUM(token_count) FROM units WHERE embedded_at IS NULL`
+  donne le volume à traiter ; au-delà d'un seuil, le run refuse de démarrer.
+- **Mode à blanc.** Une option qui compte et chiffre sans appeler l'API, à utiliser
+  systématiquement avant un backfill ou après un changement de découpage.
+
+Ces limites sont des constantes lisibles, pas des valeurs enfouies. Elles ne remplacent pas le
+plafond de dépense configuré côté OpenAI, qui reste la seule protection indépendante du code.
+
 **Le curseur n'avance qu'en cas de run complet réussi**, sinon les pages non traitées ne sont
 jamais rattrapées. Il se déduit de `runs`, sans table dédiée.
 
@@ -195,6 +227,12 @@ contrainte en base.
   d'une comparaison lexicale (`pg_trgm`).
 - **Normaliser le texte avant de le hasher** (espaces, retours à la ligne), sinon une correction
   de mise en forme invalide le cache.
+- **Une règle de nettoyage ne se déclenche que là où elle apporte un gain démontrable.** Elle est
+  établie par la mesure, pas par l'intuition : on compte ce qui revient dans le corpus, on relit
+  la liste pour écarter ce qui porte du sens (fréquent ≠ vide de sens), et on vérifie le résultat
+  en recomptant après application. Se déclencher « au cas où » ajoute de la variabilité sans
+  contrepartie. Voir `app/domain/cleaning.py`, dont les commentaires portent les mesures qui
+  justifient chaque règle.
 
 ## Modèle d'unités
 
@@ -261,8 +299,21 @@ régulièrement ou doit apparaître dans une interface, c'est une table.
 
 - **Python**, **Poetry** (`pyproject.toml`, `poetry.lock` — le lock est versionné).
 - **Idempotence** : réexécuter le pipeline ne doit jamais dupliquer de données.
-- **Le backfill n'est pas une route HTTP.** Même image, commande différente :
-  `docker compose run --rm wiki-embeddings poetry run python -m app.backfill`.
+- **Le run incrémental doit être déclenchable de l'extérieur**, puisque n8n l'appellera. Le point
+  d'entrée démarre l'exécution et répond immédiatement ; il n'attend pas la fin du traitement,
+  sinon la requête expire. L'avancement se consulte séparément, via un point d'état alimenté par
+  `runs`.
+- **Le backfill n'est pas une route HTTP.** Trop long pour une requête, et lancé à la main. Même
+  image, commande différente : `docker compose run --rm app python -m app.backfill`.
+- **Poetry ne crée pas de virtualenv dans le conteneur** (`POETRY_VIRTUALENVS_CREATE=false`) :
+  le conteneur est déjà l'isolation. Les commandes s'écrivent donc `python -m …`, jamais
+  `poetry run python -m …`.
+- **Le Dockerfile copie `pyproject.toml` et `poetry.lock` avant le code**, pour que Docker
+  réutilise la couche d'installation tant que les dépendances ne changent pas. Ne pas remettre
+  un `COPY .` avant l'installation.
+- **Ajouter une dépendance se fait dans le conteneur** (`docker compose run --rm app poetry add X`),
+  pour que la résolution ait lieu dans l'environnement Linux qui est la cible réelle — puis
+  `docker compose build` pour la prendre en compte.
 - **Service interne** : pas de `ports:` exposés en production, pas de label Traefik. Appelé par
   n8n depuis le réseau Docker interne. Seule la page de revue peut éventuellement être exposée,
   et alors derrière une authentification.
