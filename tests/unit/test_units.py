@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from app.domain.units import split_into_sections
+from app.domain.units import extract_tables, split_into_sections
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
@@ -58,3 +58,63 @@ def test_real_article_sample():
     # ça revient à l'étape de nettoyage / fusion, pas au découpage.
     empty_shell = next(s for s in sections if s.heading == "Caractérisation de la technique")
     assert empty_shell.wikitext == ""
+
+
+def test_extract_tables_returns_unchanged_text_when_no_table():
+    wikitext = "== Titre ==\ntexte sans tableau"
+    remaining, tables = extract_tables(wikitext)
+
+    assert remaining == wikitext
+    assert tables == []
+
+
+def test_extract_tables_removes_table_from_text():
+    wikitext = '== Titre ==\ntexte avant\n{|\n!Nom\n|-\n|Dumoulin\n|}\ntexte après'
+    remaining, tables = extract_tables(wikitext)
+
+    assert "{|" not in remaining
+    assert "Dumoulin" not in remaining
+    assert "texte avant" in remaining
+    assert "texte après" in remaining
+    assert len(tables) == 1
+    assert "Dumoulin" in tables[0]
+
+
+def test_extract_tables_does_not_disrupt_heading_detection():
+    wikitext = "== Avant ==\ntexte avant\n{|\n!Nom\n|-\n|Dumoulin\n|}\n== Après ==\ntexte après"
+    remaining, _ = extract_tables(wikitext)
+    sections = split_into_sections(remaining)
+
+    headings = [s.heading for s in sections]
+    assert headings == [None, "Avant", "Après"]
+
+
+def test_extract_tables_handles_nested_tables():
+    # Rencontré sur une page réelle (un PDF importé tel quel) : un tableau
+    # imbriqué dans une cellule. Retirer le tableau extérieur retire aussi
+    # l'intérieur ; sans garde, la seconde tentative de retrait échoue avec
+    # un ValueError (le nœud n'existe plus dans l'arbre).
+    wikitext = (
+        "== Titre ==\n"
+        "{|\n! {|\n!Interne\n|}\n|}\n"
+        "texte après"
+    )
+    remaining, tables = extract_tables(wikitext)
+
+    assert "{|" not in remaining
+    assert "texte après" in remaining
+    assert len(tables) >= 1
+
+
+def test_extract_tables_on_real_article_sample():
+    wikitext = (FIXTURES / "systeme_conduite_vigne.wikitext").read_text(encoding="utf-8")
+    remaining, tables = extract_tables(wikitext)
+
+    # Les 6 sections "Bioagresseurs/Auxiliaires/Accidents ... favorisés/défavorisés"
+    # du fixture contiennent chacune exactement un tableau, toutes coquilles vides.
+    assert len(tables) == 6
+    assert "{|" not in remaining
+
+    sections = split_into_sections(remaining)
+    now_empty = next(s for s in sections if s.heading == "[[Bioagresseurs]] favorisés")
+    assert now_empty.wikitext == ""
