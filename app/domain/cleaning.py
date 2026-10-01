@@ -108,3 +108,43 @@ def clean_markup(wikitext: str) -> str:
     text = re.sub(r"[ \t]+", " ", text)
     text = "\n".join(line.strip() for line in text.split("\n"))
     return text.strip()
+
+
+def _collapse_once(mots: list[str], fenetre_max: int) -> list[str]:
+    """Une seule passe : replie un bloc de mots immédiatement suivi de lui-même."""
+    sortie: list[str] = []
+    i = 0
+    while i < len(mots):
+        for n in range(min(fenetre_max, (len(mots) - i) // 2), 0, -1):
+            if mots[i:i + n] == mots[i + n:i + 2 * n]:
+                sortie.extend(mots[i:i + n])
+                i += 2 * n
+                break
+        else:
+            sortie.append(mots[i])
+            i += 1
+    return sortie
+
+
+def collapse_repeated_phrases(text: str, fenetre_max: int = 12, max_iter: int = 20) -> str:
+    """Replie les répétitions immédiates de mots ou de groupes de mots.
+
+    Le sous-titrage automatique (YouTube) défile par fenêtre glissante : un
+    même segment de parole réapparaît souvent deux à trois fois de suite dans
+    la transcription brute. Pas un problème de markup — un artefact propre à
+    la reconnaissance vocale automatique, donc une fonction à part de
+    `clean_markup`, à n'appliquer qu'aux transcriptions.
+
+    Une seule passe ne suffit pas : elle ne divise que par deux le nombre
+    d'occurrences d'un bloc répété plus de deux fois (10 répétitions de "x"
+    deviennent 5, pas 1), puisqu'elle compare chaque bloc à la copie qui le
+    suit immédiatement sans revérifier le résultat. Itérer jusqu'à ce que le
+    texte ne change plus fait converger vers une seule occurrence.
+    """
+    mots = text.split()
+    for _ in range(max_iter):
+        nouveau = _collapse_once(mots, fenetre_max)
+        if nouveau == mots:
+            break
+        mots = nouveau
+    return " ".join(mots)

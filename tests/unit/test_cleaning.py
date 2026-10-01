@@ -1,6 +1,6 @@
 import pytest
 
-from app.domain.cleaning import clean_markup, strip_introductory_phrase
+from app.domain.cleaning import clean_markup, collapse_repeated_phrases, strip_introductory_phrase
 
 
 @pytest.mark.parametrize(
@@ -127,3 +127,37 @@ def test_clean_markup_garde_un_vrai_lien_categorie_sans_alias():
     # ci-dessus. strip_code() garde le ":" initial tel quel.
     texte = "sur la [[:Catégorie:Gestion des ravageurs]]"
     assert clean_markup(texte) == "sur la :Catégorie:Gestion des ravageurs"
+
+
+def test_collapse_repeated_phrases_garde_le_texte_sans_repetition_intact():
+    texte = "bonjour tout le monde alors au programme de cette vidéo"
+    assert collapse_repeated_phrases(texte) == texte
+
+
+def test_collapse_repeated_phrases_retire_un_mot_repete():
+    # L'effet de fenêtre glissante du sous-titrage automatique répète parfois
+    # un seul mot plusieurs fois de suite (interjection, ou un marqueur non
+    # verbal comme [Musique]).
+    texte = "bonjour bonjour bonjour au programme"
+    assert collapse_repeated_phrases(texte) == "bonjour au programme"
+
+
+def test_collapse_repeated_phrases_retire_une_phrase_repetee():
+    texte = "au programme de cette vidéo je vais au programme de cette vidéo je vais vous montrer"
+    assert collapse_repeated_phrases(texte) == "au programme de cette vidéo je vais vous montrer"
+
+
+def test_collapse_repeated_phrases_converge_au_dela_de_deux_repetitions():
+    # Bug trouvé en explorant : une seule passe ne fait que diviser par deux
+    # le nombre d'occurrences d'un bloc répété plus de deux fois (10 "x" ->
+    # 5, pas 1). Il faut itérer jusqu'à ce que le texte ne change plus.
+    texte = " ".join(["musique"] * 10)
+    assert collapse_repeated_phrases(texte) == "musique"
+
+
+def test_collapse_repeated_phrases_sur_une_transcription_tres_longue_ne_bloque_pas():
+    # Les transcriptions vidéo de ce wiki vont jusqu'à ~200 000 mots — un
+    # garde-fou de performance, pas un comportement fonctionnel à vérifier.
+    texte = " ".join(["le chat mange la souris"] * 20000)
+    resultat = collapse_repeated_phrases(texte)
+    assert resultat == "le chat mange la souris"
