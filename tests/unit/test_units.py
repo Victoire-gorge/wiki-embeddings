@@ -18,9 +18,21 @@ def test_splits_on_headings_of_any_level():
     sections = split_into_sections(wikitext)
 
     # index 0 = section de tête, vide ici puisque le wikitext commence
-    # directement par un titre.
+    # directement par un titre. Chaque titre inclut le fil de ses ancêtres :
+    # Trois est imbriqué sous Deux, lui-même sous Un.
     headings = [s.heading for s in sections]
-    assert headings == [None, "Un", "Deux", "Trois"]
+    assert headings == [None, "Un", "Un > Deux", "Un > Deux > Trois"]
+
+
+def test_heading_breadcrumb_resets_on_sibling():
+    # Un nouveau titre de même niveau (ou moins profond) remplace son frère
+    # précédent dans la pile plutôt que de s'accumuler dessus : C ne doit pas
+    # hériter de B, qui n'est pas son ancêtre mais celui d'un autre rameau.
+    wikitext = "== A ==\ncorps\n=== B ===\ncorps\n== C ==\ncorps"
+    sections = split_into_sections(wikitext)
+
+    headings = [s.heading for s in sections]
+    assert headings == [None, "A", "A > B", "C"]
 
 
 def test_section_content_excludes_subsections():
@@ -50,13 +62,20 @@ def test_real_article_sample():
     assert sections[0].heading is None
     assert "Pratique" in sections[0].wikitext
 
-    described = next(s for s in sections if s.heading == "Description de la technique :")
+    # Le titre inclut le fil des ancêtres : la vraie prose est au niveau 3,
+    # imbriquée sous deux titres vides de texte mais porteurs de contexte.
+    described = next(
+        s for s in sections
+        if s.heading == "1. Présentation > Caractérisation de la technique > Description de la technique :"
+    )
     assert "conduite de la [[vigne]]" in described.wikitext
 
     # Beaucoup de sections de ce wiki sont des coquilles vides (juste un
     # titre et un séparateur "----") : la fonction ne doit pas les filtrer,
     # ça revient à l'étape de nettoyage / fusion, pas au découpage.
-    empty_shell = next(s for s in sections if s.heading == "Caractérisation de la technique")
+    empty_shell = next(
+        s for s in sections if s.heading == "1. Présentation > Caractérisation de la technique"
+    )
     assert empty_shell.wikitext == ""
 
 
@@ -189,5 +208,8 @@ def test_extract_tables_on_real_article_sample():
     assert "{|" not in remaining
 
     sections = split_into_sections(remaining)
-    now_empty = next(s for s in sections if s.heading == "[[Bioagresseurs]] favorisés")
+    now_empty = next(
+        s for s in sections
+        if s.heading == "4. Organismes favorisés ou défavorisés > [[Bioagresseurs]] favorisés"
+    )
     assert now_empty.wikitext == ""

@@ -125,6 +125,25 @@ def splice_video_fields(wikitext: str) -> str:
     return "\n\n".join(([reste] if reste else []) + sections)
 
 
+def _heading_breadcrumbs(headings: list) -> list[str]:
+    """Pour chaque titre, dans l'ordre du document, son chemin depuis la racine.
+
+    Un titre de même niveau (ou moins profond) que celui au sommet de la pile
+    n'est pas son enfant : on dépile avant d'empiler, pour qu'un rameau ne
+    hérite pas du contexte d'un rameau frère déjà refermé.
+    """
+    pile: list[tuple[int, str]] = []
+    chemins = []
+    for heading in headings:
+        niveau = heading.level
+        titre = str(heading.title).strip()
+        while pile and pile[-1][0] >= niveau:
+            pile.pop()
+        pile.append((niveau, titre))
+        chemins.append(" > ".join(t for _, t in pile))
+    return chemins
+
+
 def split_into_sections(wikitext: str) -> list[RawSection]:
     """Découpe le wikitext d'une page en sections, titres inclus.
 
@@ -133,9 +152,17 @@ def split_into_sections(wikitext: str) -> list[RawSection]:
     non-flat, qui les imbrique et dupliquerait le texte entre une section et
     ses enfants). Le contenu avant le premier titre forme une section de tête
     avec ``heading=None``.
+
+    Le titre de chaque section inclut le fil de ses ancêtres (``"A > B > C"``)
+    même quand ceux-ci n'ont pas de texte propre : beaucoup de pages de ce
+    wiki imbriquent la seule prose utile sous deux ou trois titres vides
+    (ex. ``1. Présentation > Caractérisation de la technique > Description``)
+    — sans ce fil, cette unité perdrait tout contexte une fois ses ancêtres
+    filtrés à l'étape suivante pour absence de texte.
     """
     code = mwparserfromhell.parse(wikitext)
     sections = code.get_sections(flat=True, include_lead=True, include_headings=True)
+    chemins = _heading_breadcrumbs(code.filter_headings())
 
     raw_sections = []
     for index, section in enumerate(sections):
@@ -147,7 +174,7 @@ def split_into_sections(wikitext: str) -> list[RawSection]:
         headings = fragment.filter_headings()
         heading = None
         if headings:
-            heading = str(headings[0].title).strip()
+            heading = chemins[index - 1]
             fragment.remove(headings[0])
 
         raw_sections.append(
