@@ -56,6 +56,75 @@ def extract_tables(wikitext: str) -> tuple[str, list[str]]:
     return str(code), raw_tables
 
 
+def splice_video_fields(wikitext: str) -> str:
+    """Réinjecte le résumé et la transcription d'une page `Vidéo` comme sections.
+
+    Une page `Vidéo` porte son vrai contenu dans des paramètres de template —
+    pas dans le corps de l'article — pour deux champs distincts : un résumé
+    court (paramètre `Résumé` du template `Vidéo` lui-même) et, séparément, un
+    résumé long (template `Résumé long`, souvent structuré avec ses propres
+    titres `==`) et une transcription (template `Transcription`). Sans ce
+    repli, ces pages (~28 % du corpus) ne produisent aucune unité : les
+    templates sont retirés tels quels par `clean_markup` en aval.
+
+    Les deux résumés sont gardés sous deux titres distincts plutôt que l'un
+    des deux choisi d'avance : lequel est le plus utile se mesure sur les
+    embeddings, pas par principe (mesuré : 1325 pages sur 1809 ont les deux,
+    74 n'ont que le court).
+
+    Ce n'est pas un branchement par type de page : c'est l'extraction de trois
+    champs nommés, qui deviennent des sections comme les autres dès qu'on
+    repasse par `split_into_sections` — y compris les sous-titres internes du
+    résumé long, récupérés sans traitement supplémentaire.
+    """
+    code = mwparserfromhell.parse(wikitext)
+    templates = code.filter_templates()
+
+    video_template = next(
+        (t for t in templates if str(t.name).strip().lower() in ("vidéo", "video")), None
+    )
+    if video_template is None:
+        return wikitext
+
+    def champ(template, nom_param):
+        for param in template.params:
+            if str(param.name).strip().lower() == nom_param:
+                valeur = str(param.value).strip()
+                if valeur:
+                    return valeur
+        return None
+
+    resume_court = champ(video_template, "résumé")
+
+    resume_long = None
+    transcription = None
+    for t in templates:
+        name = str(t.name).strip().lower()
+        if name.startswith("résumé") and t is not video_template:
+            resume_long = champ(t, "résumé") or resume_long
+        elif name == "transcription":
+            transcription = champ(t, "transcription") or transcription
+
+    for t in templates:
+        name = str(t.name).strip().lower()
+        if name in ("vidéo", "video") or name.startswith("résumé") or name == "transcription":
+            try:
+                code.remove(t)
+            except ValueError:
+                pass  # déjà retiré (imbriqué dans un template déjà retiré)
+
+    sections = []
+    if resume_court:
+        sections.append(f"== Résumé court ==\n{resume_court}")
+    if resume_long:
+        sections.append(f"== Résumé long ==\n{resume_long}")
+    if transcription:
+        sections.append(f"== Transcription ==\n{transcription}")
+
+    reste = str(code).strip()
+    return "\n\n".join(([reste] if reste else []) + sections)
+
+
 def split_into_sections(wikitext: str) -> list[RawSection]:
     """Découpe le wikitext d'une page en sections, titres inclus.
 

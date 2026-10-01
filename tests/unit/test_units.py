@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from app.domain.units import extract_tables, split_into_sections
+from app.domain.units import extract_tables, splice_video_fields, split_into_sections
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
@@ -104,6 +104,79 @@ def test_extract_tables_handles_nested_tables():
     assert "{|" not in remaining
     assert "texte après" in remaining
     assert len(tables) >= 1
+
+
+def test_splice_video_fields_leaves_non_video_pages_unchanged():
+    wikitext = "== Titre ==\ntexte normal, aucun rapport avec une vidéo"
+    assert splice_video_fields(wikitext) == wikitext
+
+
+def test_splice_video_fields_adds_resume_court_as_a_section():
+    wikitext = "{{Vidéo\n| Résumé = Un résumé court.\n}}"
+    spliced = splice_video_fields(wikitext)
+
+    sections = split_into_sections(spliced)
+    resume = next(s for s in sections if s.heading == "Résumé court")
+    assert "Un résumé court." in resume.wikitext
+
+
+def test_splice_video_fields_prefers_separate_resume_long_distinctly():
+    # Décision actée : les deux résumés sont gardés, sous deux titres distincts —
+    # le tri entre les deux se fera plus tard, par la mesure sur les embeddings.
+    wikitext = (
+        "{{Vidéo\n| Résumé = Résumé court ici.\n}}\n"
+        "{{Résumé long\n|Résumé=Résumé long ici, plus détaillé.\n}}"
+    )
+    spliced = splice_video_fields(wikitext)
+    sections = split_into_sections(spliced)
+
+    court = next(s for s in sections if s.heading == "Résumé court")
+    long_ = next(s for s in sections if s.heading == "Résumé long")
+    assert "Résumé court ici." in court.wikitext
+    assert "Résumé long ici" in long_.wikitext
+
+
+def test_splice_video_fields_adds_transcription_as_a_section():
+    # Un template Transcription n'existe jamais sans le template Vidéo qui
+    # l'accompagne sur ce wiki — la garde de la fonction s'appuie dessus.
+    wikitext = "{{Vidéo\n| Producteur = X\n}}\n{{Transcription\n|transcription=texte transcrit ici\n}}"
+    spliced = splice_video_fields(wikitext)
+
+    sections = split_into_sections(spliced)
+    transcription = next(s for s in sections if s.heading == "Transcription")
+    assert "texte transcrit ici" in transcription.wikitext
+
+
+def test_splice_video_fields_keeps_prose_outside_templates():
+    wikitext = (
+        "{{Vidéo\n| Résumé = Résumé.\n}}\n"
+        "Texte hors template, après l'infobox."
+    )
+    spliced = splice_video_fields(wikitext)
+
+    assert "Texte hors template, après l'infobox." in spliced
+    assert "{{Vidéo" not in spliced
+
+
+def test_splice_video_fields_recovers_internal_headings_of_long_resume():
+    # Le bénéfice attendu de l'option retenue : le résumé long a souvent ses
+    # propres sous-titres, qui deviennent des unités à part une fois repassés
+    # par split_into_sections — sans retravailler le découpage.
+    # Trois "=" d'affilée dans le wikitext réel : le séparateur du paramètre,
+    # puis l'ouverture "==" du titre lui-même — motif vérifié sur une vraie
+    # page du corpus.
+    wikitext = (
+        "{{Vidéo\n| Producteur = X\n}}\n"
+        "{{Résumé long\n"
+        "|Résumé=== Introduction ==\nTexte d'intro.\n== Témoignage ==\nTexte du témoignage.\n"
+        "}}"
+    )
+    spliced = splice_video_fields(wikitext)
+    sections = split_into_sections(spliced)
+
+    headings = [s.heading for s in sections]
+    assert "Introduction" in headings
+    assert "Témoignage" in headings
 
 
 def test_extract_tables_on_real_article_sample():
