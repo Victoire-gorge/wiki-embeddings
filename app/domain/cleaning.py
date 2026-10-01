@@ -20,6 +20,14 @@ import mwparserfromhell
 # visible, [[:Catégorie:X|alias]], que strip_code() doit garder.
 _LIEN_INVISIBLE = re.compile(r"^(cat[ée]gorie|category):|^[a-z]{2,3}:", re.IGNORECASE)
 
+# Résidu d'un lien de catégorie dont les crochets ont été oubliés à l'édition
+# ou à l'import : ":Catégorie:Chêne|chêne" en texte brut, pas un nœud wiki
+# (pas de "[[" du tout), donc invisible pour mwparserfromhell — strip_code()
+# ne peut rien y faire. Mesuré sur 3089 pages, dont 1016 hors d'un template
+# Transcription : un problème général de markup mal formé, pas un artefact
+# propre aux transcriptions.
+_RESIDU_CATEGORIE_SANS_CROCHETS = re.compile(r":?[Cc]at[ée]gorie:[^\s|]+\|")
+
 # Locutions introductives repérées sur le corpus Triple Performance, dans les
 # résumés de pages vidéo : « Dans cette conférence, … », « Lors de cette table
 # ronde, … ». Elles ouvrent près de la moitié des résumés et ne portent aucune
@@ -66,14 +74,18 @@ def strip_introductory_phrase(text: str) -> str:
 def clean_markup(wikitext: str) -> str:
     """Convertit du wikitext (hors tableaux, déjà extraits ailleurs) en texte.
 
-    Deux retraits avant `strip_code()`, tous deux mesurés sur ce wiki :
+    Trois retraits, tous mesurés sur ce wiki — deux avant `strip_code()`, un
+    après :
 
     - les balises `<ref>` : `strip_code()` garde leur contenu et le soude au
       mot précédent sans espace ("la parcelleSource : étude X") — une
       citation n'est de toute façon pas la prose de la section ;
     - les liens wiki invisibles sur la page rendue (catégorisation,
       interlangue) : `strip_code()` ne sait pas qu'ils sont invisibles et en
-      affiche le titre comme texte ("Category:Anthracnose").
+      affiche le titre comme texte ("Category:Anthracnose") ;
+    - après `strip_code()`, le résidu d'un lien de catégorie dont les crochets
+      ont été oubliés (":Catégorie:Chêne|chêne") : ce n'est pas un nœud wiki,
+      donc invisible pour les deux retraits précédents.
 
     Les templates restent gérés par `strip_code()` seul : mesuré sur ce wiki,
     ceux qui apparaissent dans le corps d'une section (hors lead/infobox) sont
@@ -90,6 +102,7 @@ def clean_markup(wikitext: str) -> str:
             code.remove(link)
 
     text = code.strip_code()
+    text = _RESIDU_CATEGORIE_SANS_CROCHETS.sub("", text)
     # Espaces/tabulations en double laissés par un nœud retiré — pas les
     # sauts de ligne, qui séparent des paragraphes et doivent rester.
     text = re.sub(r"[ \t]+", " ", text)

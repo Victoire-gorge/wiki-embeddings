@@ -111,3 +111,19 @@ def test_clean_markup_ne_fusionne_pas_les_paragraphes():
 def test_clean_markup_ne_laisse_pas_de_double_espace_apres_un_retrait():
     texte = "présence de [[Catégorie:Vigne]] dans la région"
     assert clean_markup(texte) == "présence de dans la région"
+
+
+def test_clean_markup_retire_le_residu_de_lien_categorie_sans_crochets():
+    # Un défaut d'édition/import, pas un lien valide : pas de "[[" du tout,
+    # donc invisible pour strip_code() — mesuré hors des seules transcriptions
+    # (1016 pages sur 3089), c'est un problème général de markup mal formé.
+    texte = "avec du :Catégorie:Chêne|chêne avec de l'érable avec du :Catégorie:Platane|platane"
+    assert clean_markup(texte) == "avec du chêne avec de l'érable avec du platane"
+
+
+def test_clean_markup_garde_un_vrai_lien_categorie_sans_alias():
+    # [[:Catégorie:Gestion des ravageurs]] (avec ":", sans alias) est un lien
+    # visible normal — ce n'est pas le même cas que le résidu sans crochets
+    # ci-dessus. strip_code() garde le ":" initial tel quel.
+    texte = "sur la [[:Catégorie:Gestion des ravageurs]]"
+    assert clean_markup(texte) == "sur la :Catégorie:Gestion des ravageurs"
