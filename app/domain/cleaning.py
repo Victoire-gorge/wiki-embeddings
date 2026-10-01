@@ -9,6 +9,17 @@ from __future__ import annotations
 
 import re
 
+import mwparserfromhell
+
+# Liens wiki invisibles sur la page rendue, à ne jamais garder comme texte :
+#   - catégorisation, [[Category:X]] / [[Catégorie:X]] sans ":" initial ;
+#   - interlangue, [[en:Titre]] — codes à 2-3 lettres mesurés sur ce wiki :
+#     en, de, es, nl, it, pl, hu, pt, fi, el, ar (aucun ne collisionne avec un
+#     namespace réel, qui sont tous des mots complets ici : Catégorie, Modèle...).
+# Le ":" initial est ce qui distingue ce cas d'un lien de renvoi normal et
+# visible, [[:Catégorie:X|alias]], que strip_code() doit garder.
+_LIEN_INVISIBLE = re.compile(r"^(cat[ée]gorie|category):|^[a-z]{2,3}:", re.IGNORECASE)
+
 # Locutions introductives repérées sur le corpus Triple Performance, dans les
 # résumés de pages vidéo : « Dans cette conférence, … », « Lors de cette table
 # ronde, … ». Elles ouvrent près de la moitié des résumés et ne portent aucune
@@ -50,3 +61,37 @@ def strip_introductory_phrase(text: str) -> str:
     Unicode feront échouer la reconnaissance sans erreur visible.
     """
     return _LOCUTION_INTRODUCTIVE.sub("", text, count=1)
+
+
+def clean_markup(wikitext: str) -> str:
+    """Convertit du wikitext (hors tableaux, déjà extraits ailleurs) en texte.
+
+    Deux retraits avant `strip_code()`, tous deux mesurés sur ce wiki :
+
+    - les balises `<ref>` : `strip_code()` garde leur contenu et le soude au
+      mot précédent sans espace ("la parcelleSource : étude X") — une
+      citation n'est de toute façon pas la prose de la section ;
+    - les liens wiki invisibles sur la page rendue (catégorisation,
+      interlangue) : `strip_code()` ne sait pas qu'ils sont invisibles et en
+      affiche le titre comme texte ("Category:Anthracnose").
+
+    Les templates restent gérés par `strip_code()` seul : mesuré sur ce wiki,
+    ceux qui apparaissent dans le corps d'une section (hors lead/infobox) sont
+    structurels (`{{Pages liées}}`, `{{#set:}}`...), jamais porteurs de prose.
+    """
+    code = mwparserfromhell.parse(wikitext)
+
+    for tag in code.filter_tags(matches=lambda t: t.tag.lower() == "ref"):
+        code.remove(tag)
+
+    for link in code.filter_wikilinks():
+        title = str(link.title).strip()
+        if not title.startswith(":") and _LIEN_INVISIBLE.match(title):
+            code.remove(link)
+
+    text = code.strip_code()
+    # Espaces/tabulations en double laissés par un nœud retiré — pas les
+    # sauts de ligne, qui séparent des paragraphes et doivent rester.
+    text = re.sub(r"[ \t]+", " ", text)
+    text = "\n".join(line.strip() for line in text.split("\n"))
+    return text.strip()
