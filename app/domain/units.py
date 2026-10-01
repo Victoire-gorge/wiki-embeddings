@@ -27,6 +27,35 @@ class RawSection:
     wikitext: str
 
 
+def extract_tables(wikitext: str) -> tuple[str, list[str]]:
+    """Retire les tableaux wiki (`{| ... |}`) du wikitext d'une page.
+
+    Un tableau n'est pas de la prose : `strip_code()` colle ses cellules sans
+    aucun séparateur (mesuré : "Organisme Impact ..." devient
+    "OrganismeImpact..."), et mwparserfromhell 0.6 n'a pas d'API structurée
+    (lignes/cellules) pour les traiter proprement. On les extrait donc avant
+    le découpage en sections, pour que le nettoyage du texte n'ait jamais à
+    les gérer.
+
+    Les tableaux retirés sont renvoyés tels quels, pas jetés : une partie
+    contient de vraies données (annuaires de contact, tableaux d'intrants),
+    à explorer séparément pour décider quels champs récurrents méritent de
+    devenir des filtres — pas tranché ici.
+    """
+    code = mwparserfromhell.parse(wikitext)
+    tables = code.filter_tags(matches=lambda tag: tag.tag == "table")
+    raw_tables = [str(table) for table in tables]
+    for table in tables:
+        try:
+            code.remove(table)
+        except ValueError:
+            # Tableau imbriqué : déjà retiré avec le tableau parent qui le
+            # contenait. Son wikitext brut reste dans raw_tables (capturé
+            # avant le retrait), rien n'est perdu.
+            pass
+    return str(code), raw_tables
+
+
 def split_into_sections(wikitext: str) -> list[RawSection]:
     """Découpe le wikitext d'une page en sections, titres inclus.
 
