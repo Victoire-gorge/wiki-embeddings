@@ -1,6 +1,11 @@
 import pytest
 
-from app.domain.cleaning import clean_markup, collapse_repeated_phrases, strip_introductory_phrase
+from app.domain.cleaning import (
+    clean_markup,
+    collapse_repeated_phrases,
+    strip_introductory_phrase,
+    strip_reporting_frame,
+)
 
 
 @pytest.mark.parametrize(
@@ -161,3 +166,57 @@ def test_collapse_repeated_phrases_sur_une_transcription_tres_longue_ne_bloque_p
     texte = " ".join(["le chat mange la souris"] * 20000)
     resultat = collapse_repeated_phrases(texte)
     assert resultat == "le chat mange la souris"
+
+
+@pytest.mark.parametrize(
+    "texte, attendu",
+    [
+        (
+            "Il est rappelé que le climat est un assemblage de microclimats.",
+            "le climat est un assemblage de microclimats.",
+        ),
+        (
+            "Il est souligné que l'on coupe parfois des arbres.",
+            "l'on coupe parfois des arbres.",
+        ),
+        (
+            # Apostrophe d'élision ("qu'") devant une voyelle, pas "que ".
+            "Il est rappelé qu'on manque d'arbres dans les territoires agricoles.",
+            "on manque d'arbres dans les territoires agricoles.",
+        ),
+        (
+            # Pas en tête de phrase : la locution reste retirée où qu'elle soit,
+            # contrairement à strip_introductory_phrase qui n'agit qu'en tête.
+            "En fin de débat, il est rappelé que chacun peut agir à son niveau.",
+            "En fin de débat, chacun peut agir à son niveau.",
+        ),
+        (
+            "Il est indiqué qu'environ 108 grammes sont de l'eau nouvelle.",
+            "environ 108 grammes sont de l'eau nouvelle.",
+        ),
+    ],
+)
+def test_strip_reporting_frame_retire_la_tournure_de_rapport(texte, attendu):
+    assert strip_reporting_frame(texte) == attendu
+
+
+def test_strip_reporting_frame_retire_toutes_les_occurrences():
+    # Contrairement à strip_introductory_phrase (une seule fois, en tête),
+    # cette tournure revient plusieurs fois dans un même résumé long.
+    texte = "Il est rappelé que X. Plus loin, il est précisé que Y."
+    assert strip_reporting_frame(texte) == "X. Plus loin, Y."
+
+
+@pytest.mark.parametrize(
+    "texte",
+    [
+        # Tournures modales : portent un vrai sens (possibilité, nécessité,
+        # importance), pas une méta-commentaire sur la source. À ne pas toucher.
+        "Il est possible de réduire les coûts de production.",
+        "Il est essentiel de bien préparer le sol avant le semis.",
+        "Il est nécessaire d'attendre la bonne fenêtre météo.",
+        "Il est important de respecter la rotation des cultures.",
+    ],
+)
+def test_strip_reporting_frame_laisse_intactes_les_tournures_modales(texte):
+    assert strip_reporting_frame(texte) == texte
