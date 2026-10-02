@@ -56,6 +56,42 @@ _LOCUTION_INTRODUCTIVE = re.compile(
     re.IGNORECASE,
 )
 
+# Tournure de rapport repérée dans les résumés longs générés pour les pages
+# Vidéo : « Il est rappelé que… », « il est souligné que… ». Le contenu réel
+# commence juste après — la tournure ne fait qu'habiller une reformulation du
+# propos de la vidéo, elle ne porte aucune information en elle-même.
+#
+# Mesuré sur 1326 résumés longs : 47 % contiennent au moins une tournure
+# "il est <verbe> que/de" (1234 occurrences), mais toutes ne se valent pas.
+# Les verbes ci-dessous (rappelé, précisé, indiqué, expliqué, souligné,
+# répondu, affirmé, dit) sont de purs verbes de rapport — 380 occurrences.
+# Volontairement exclus : les tournures modales comme "il est possible",
+# "il est essentiel", "il est nécessaire" (228, 44 et 28 occurrences) — elles
+# expriment une possibilité ou une nécessité, c'est le message lui-même, pas
+# un commentaire sur la source.
+#
+# Contrairement à `_LOCUTION_INTRODUCTIVE`, cette tournure n'est pas ancrée en
+# tête de texte : elle revient à plusieurs endroits d'un même résumé long
+# ("En fin de débat, il est rappelé que…"), d'où `count=0` (toutes les
+# occurrences) dans `strip_reporting_frame`, plutôt que `count=1`.
+_TOURNURE_DE_RAPPORT = re.compile(
+    r"\bil (?:est|a été|avait été)\s+"
+    r"(?:rappelé|précisé|indiqué|expliqué|souligné|répondu|affirmé|dit)\s+"
+    r"(?:que\s+|qu[’\'])",
+    re.IGNORECASE,
+)
+
+
+def strip_reporting_frame(text: str) -> str:
+    """Retire les tournures de rapport (« il est rappelé que… ») du texte.
+
+    Garde intactes les tournures modales (« il est possible de… ») : elles
+    portent un vrai sens, contrairement aux verbes de rapport qui signalent
+    seulement que ce qui suit reformule le propos de la source, sans rien
+    ajouter en eux-mêmes.
+    """
+    return _TOURNURE_DE_RAPPORT.sub("", text)
+
 
 def strip_introductory_phrase(text: str) -> str:
     """Retire une locution introductive en tête de texte, si elle s'y trouve.
