@@ -81,7 +81,8 @@ def splice_video_fields(wikitext: str) -> str:
     templates = code.filter_templates()
 
     video_template = next(
-        (t for t in templates if str(t.name).strip().lower() in ("vidéo", "video")), None
+        (t for t in templates if str(t.name).strip().lower() in ("vidéo", "video")),
+        None,
     )
     if video_template is None:
         return wikitext
@@ -107,7 +108,11 @@ def splice_video_fields(wikitext: str) -> str:
 
     for t in templates:
         name = str(t.name).strip().lower()
-        if name in ("vidéo", "video") or name.startswith("résumé") or name == "transcription":
+        if (
+            name in ("vidéo", "video")
+            or name.startswith("résumé")
+            or name == "transcription"
+        ):
             try:
                 code.remove(t)
             except ValueError:
@@ -178,7 +183,9 @@ def split_into_sections(wikitext: str) -> list[RawSection]:
             fragment.remove(headings[0])
 
         raw_sections.append(
-            RawSection(unit_index=index, heading=heading, wikitext=str(fragment).strip())
+            RawSection(
+                unit_index=index, heading=heading, wikitext=str(fragment).strip()
+            )
         )
 
     return raw_sections

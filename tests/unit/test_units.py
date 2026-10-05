@@ -54,7 +54,9 @@ def test_heading_markup_is_not_cleaned_yet():
 
 
 def test_real_article_sample():
-    wikitext = (FIXTURES / "systeme_conduite_vigne.wikitext").read_text(encoding="utf-8")
+    wikitext = (FIXTURES / "systeme_conduite_vigne.wikitext").read_text(
+        encoding="utf-8"
+    )
     sections = split_into_sections(wikitext)
 
     # 1 section de tête (les deux templates d'infobox) + 21 titres du fixture.
@@ -66,7 +68,10 @@ def test_real_article_sample():
     # imbriquée sous deux titres vides de texte mais porteurs de contexte.
     described = next(
         s for s in sections
-        if s.heading == "1. Présentation > Caractérisation de la technique > Description de la technique :"
+        if s.heading == (
+            "1. Présentation > Caractérisation de la technique > "
+            "Description de la technique :"
+        )
     )
     assert "conduite de la [[vigne]]" in described.wikitext
 
@@ -74,7 +79,8 @@ def test_real_article_sample():
     # titre et un séparateur "----") : la fonction ne doit pas les filtrer,
     # ça revient à l'étape de nettoyage / fusion, pas au découpage.
     empty_shell = next(
-        s for s in sections if s.heading == "1. Présentation > Caractérisation de la technique"
+        s for s in sections
+        if s.heading == "1. Présentation > Caractérisation de la technique"
     )
     assert empty_shell.wikitext == ""
 
@@ -100,7 +106,10 @@ def test_extract_tables_removes_table_from_text():
 
 
 def test_extract_tables_does_not_disrupt_heading_detection():
-    wikitext = "== Avant ==\ntexte avant\n{|\n!Nom\n|-\n|Dumoulin\n|}\n== Après ==\ntexte après"
+    wikitext = (
+        "== Avant ==\ntexte avant\n{|\n!Nom\n|-\n|Dumoulin\n|}\n"
+        "== Après ==\ntexte après"
+    )
     remaining, _ = extract_tables(wikitext)
     sections = split_into_sections(remaining)
 
@@ -158,7 +167,10 @@ def test_splice_video_fields_prefers_separate_resume_long_distinctly():
 def test_splice_video_fields_adds_transcription_as_a_section():
     # Un template Transcription n'existe jamais sans le template Vidéo qui
     # l'accompagne sur ce wiki — la garde de la fonction s'appuie dessus.
-    wikitext = "{{Vidéo\n| Producteur = X\n}}\n{{Transcription\n|transcription=texte transcrit ici\n}}"
+    wikitext = (
+        "{{Vidéo\n| Producteur = X\n}}\n"
+        "{{Transcription\n|transcription=texte transcrit ici\n}}"
+    )
     spliced = splice_video_fields(wikitext)
 
     sections = split_into_sections(spliced)
@@ -187,7 +199,8 @@ def test_splice_video_fields_recovers_internal_headings_of_long_resume():
     wikitext = (
         "{{Vidéo\n| Producteur = X\n}}\n"
         "{{Résumé long\n"
-        "|Résumé=== Introduction ==\nTexte d'intro.\n== Témoignage ==\nTexte du témoignage.\n"
+        "|Résumé=== Introduction ==\nTexte d'intro.\n== Témoignage ==\n"
+        "Texte du témoignage.\n"
         "}}"
     )
     spliced = splice_video_fields(wikitext)
@@ -199,7 +212,9 @@ def test_splice_video_fields_recovers_internal_headings_of_long_resume():
 
 
 def test_extract_tables_on_real_article_sample():
-    wikitext = (FIXTURES / "systeme_conduite_vigne.wikitext").read_text(encoding="utf-8")
+    wikitext = (FIXTURES / "systeme_conduite_vigne.wikitext").read_text(
+        encoding="utf-8"
+    )
     remaining, tables = extract_tables(wikitext)
 
     # Les 6 sections "Bioagresseurs/Auxiliaires/Accidents ... favorisés/défavorisés"
@@ -210,6 +225,9 @@ def test_extract_tables_on_real_article_sample():
     sections = split_into_sections(remaining)
     now_empty = next(
         s for s in sections
-        if s.heading == "4. Organismes favorisés ou défavorisés > [[Bioagresseurs]] favorisés"
+        if s.heading == (
+            "4. Organismes favorisés ou défavorisés > "
+            "[[Bioagresseurs]] favorisés"
+        )
     )
     assert now_empty.wikitext == ""

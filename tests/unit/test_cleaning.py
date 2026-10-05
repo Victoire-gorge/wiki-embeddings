@@ -34,8 +34,10 @@ def test_retire_la_locution_introductive(texte, attendu):
         # Sans virgule : le nom est suivi d'un complément qui porte du contenu.
         # Retirer « Dans cet atelier » couperait au milieu d'un groupe nominal
         # pour ne gagner que trois mots — l'opération s'annule.
-        "Dans cet atelier consacré à l'entretien du jardin, Marceau échange avec Guillaume.",
-        "Lors de cette table ronde animée à la ferme de Marciac, les praticiens exposent.",
+        "Dans cet atelier consacré à l'entretien du jardin, Marceau échange avec "
+        "Guillaume.",
+        "Lors de cette table ronde animée à la ferme de Marciac, les praticiens "
+        "exposent.",
         # Locutions fréquentes en tête de résumé mais porteuses d'information :
         # un programme, un lieu. Les supprimer détruirait du contenu.
         "Dans le cadre du programme Ecophyto, les partenaires ont expérimenté.",
@@ -65,7 +67,10 @@ def test_clean_markup_retire_les_refs_avec_leur_contenu():
 
 
 def test_clean_markup_retire_les_refs_nommees_et_les_rappels():
-    texte = 'Plusieurs sources<ref name="x">Étude A</ref> confirment<ref name="x" /> l\'effet.'
+    texte = (
+        'Plusieurs sources<ref name="x">Étude A</ref> confirment<ref name="x" /> '
+        "l'effet."
+    )
     assert clean_markup(texte) == "Plusieurs sources confirment l'effet."
 
 
