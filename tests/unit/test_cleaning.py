@@ -1,6 +1,11 @@
 import pytest
 
-from app.domain.cleaning import clean_markup, strip_introductory_phrase
+from app.domain.cleaning import (
+    clean_markup,
+    collapse_repeated_phrases,
+    strip_introductory_phrase,
+    strip_reporting_frame,
+)
 
 
 @pytest.mark.parametrize(
@@ -111,3 +116,107 @@ def test_clean_markup_ne_fusionne_pas_les_paragraphes():
 def test_clean_markup_ne_laisse_pas_de_double_espace_apres_un_retrait():
     texte = "présence de [[Catégorie:Vigne]] dans la région"
     assert clean_markup(texte) == "présence de dans la région"
+
+
+def test_clean_markup_retire_le_residu_de_lien_categorie_sans_crochets():
+    # Un défaut d'édition/import, pas un lien valide : pas de "[[" du tout,
+    # donc invisible pour strip_code() — mesuré hors des seules transcriptions
+    # (1016 pages sur 3089), c'est un problème général de markup mal formé.
+    texte = "avec du :Catégorie:Chêne|chêne avec de l'érable avec du :Catégorie:Platane|platane"
+    assert clean_markup(texte) == "avec du chêne avec de l'érable avec du platane"
+
+
+def test_clean_markup_garde_un_vrai_lien_categorie_sans_alias():
+    # [[:Catégorie:Gestion des ravageurs]] (avec ":", sans alias) est un lien
+    # visible normal — ce n'est pas le même cas que le résidu sans crochets
+    # ci-dessus. strip_code() garde le ":" initial tel quel.
+    texte = "sur la [[:Catégorie:Gestion des ravageurs]]"
+    assert clean_markup(texte) == "sur la :Catégorie:Gestion des ravageurs"
+
+
+def test_collapse_repeated_phrases_garde_le_texte_sans_repetition_intact():
+    texte = "bonjour tout le monde alors au programme de cette vidéo"
+    assert collapse_repeated_phrases(texte) == texte
+
+
+def test_collapse_repeated_phrases_retire_un_mot_repete():
+    # L'effet de fenêtre glissante du sous-titrage automatique répète parfois
+    # un seul mot plusieurs fois de suite (interjection, ou un marqueur non
+    # verbal comme [Musique]).
+    texte = "bonjour bonjour bonjour au programme"
+    assert collapse_repeated_phrases(texte) == "bonjour au programme"
+
+
+def test_collapse_repeated_phrases_retire_une_phrase_repetee():
+    texte = "au programme de cette vidéo je vais au programme de cette vidéo je vais vous montrer"
+    assert collapse_repeated_phrases(texte) == "au programme de cette vidéo je vais vous montrer"
+
+
+def test_collapse_repeated_phrases_converge_au_dela_de_deux_repetitions():
+    # Bug trouvé en explorant : une seule passe ne fait que diviser par deux
+    # le nombre d'occurrences d'un bloc répété plus de deux fois (10 "x" ->
+    # 5, pas 1). Il faut itérer jusqu'à ce que le texte ne change plus.
+    texte = " ".join(["musique"] * 10)
+    assert collapse_repeated_phrases(texte) == "musique"
+
+
+def test_collapse_repeated_phrases_sur_une_transcription_tres_longue_ne_bloque_pas():
+    # Les transcriptions vidéo de ce wiki vont jusqu'à ~200 000 mots — un
+    # garde-fou de performance, pas un comportement fonctionnel à vérifier.
+    texte = " ".join(["le chat mange la souris"] * 20000)
+    resultat = collapse_repeated_phrases(texte)
+    assert resultat == "le chat mange la souris"
+
+
+@pytest.mark.parametrize(
+    "texte, attendu",
+    [
+        (
+            "Il est rappelé que le climat est un assemblage de microclimats.",
+            "le climat est un assemblage de microclimats.",
+        ),
+        (
+            "Il est souligné que l'on coupe parfois des arbres.",
+            "l'on coupe parfois des arbres.",
+        ),
+        (
+            # Apostrophe d'élision ("qu'") devant une voyelle, pas "que ".
+            "Il est rappelé qu'on manque d'arbres dans les territoires agricoles.",
+            "on manque d'arbres dans les territoires agricoles.",
+        ),
+        (
+            # Pas en tête de phrase : la locution reste retirée où qu'elle soit,
+            # contrairement à strip_introductory_phrase qui n'agit qu'en tête.
+            "En fin de débat, il est rappelé que chacun peut agir à son niveau.",
+            "En fin de débat, chacun peut agir à son niveau.",
+        ),
+        (
+            "Il est indiqué qu'environ 108 grammes sont de l'eau nouvelle.",
+            "environ 108 grammes sont de l'eau nouvelle.",
+        ),
+    ],
+)
+def test_strip_reporting_frame_retire_la_tournure_de_rapport(texte, attendu):
+    assert strip_reporting_frame(texte) == attendu
+
+
+def test_strip_reporting_frame_retire_toutes_les_occurrences():
+    # Contrairement à strip_introductory_phrase (une seule fois, en tête),
+    # cette tournure revient plusieurs fois dans un même résumé long.
+    texte = "Il est rappelé que X. Plus loin, il est précisé que Y."
+    assert strip_reporting_frame(texte) == "X. Plus loin, Y."
+
+
+@pytest.mark.parametrize(
+    "texte",
+    [
+        # Tournures modales : portent un vrai sens (possibilité, nécessité,
+        # importance), pas une méta-commentaire sur la source. À ne pas toucher.
+        "Il est possible de réduire les coûts de production.",
+        "Il est essentiel de bien préparer le sol avant le semis.",
+        "Il est nécessaire d'attendre la bonne fenêtre météo.",
+        "Il est important de respecter la rotation des cultures.",
+    ],
+)
+def test_strip_reporting_frame_laisse_intactes_les_tournures_modales(texte):
+    assert strip_reporting_frame(texte) == texte
