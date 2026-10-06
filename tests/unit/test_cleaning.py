@@ -127,7 +127,10 @@ def test_clean_markup_retire_le_residu_de_lien_categorie_sans_crochets():
     # Un défaut d'édition/import, pas un lien valide : pas de "[[" du tout,
     # donc invisible pour strip_code() — mesuré hors des seules transcriptions
     # (1016 pages sur 3089), c'est un problème général de markup mal formé.
-    texte = "avec du :Catégorie:Chêne|chêne avec de l'érable avec du :Catégorie:Platane|platane"
+    texte = (
+        "avec du :Catégorie:Chêne|chêne avec de l'érable avec du "
+        ":Catégorie:Platane|platane"
+    )
     assert clean_markup(texte) == "avec du chêne avec de l'érable avec du platane"
 
 
@@ -153,8 +156,13 @@ def test_collapse_repeated_phrases_retire_un_mot_repete():
 
 
 def test_collapse_repeated_phrases_retire_une_phrase_repetee():
-    texte = "au programme de cette vidéo je vais au programme de cette vidéo je vais vous montrer"
-    assert collapse_repeated_phrases(texte) == "au programme de cette vidéo je vais vous montrer"
+    texte = (
+        "au programme de cette vidéo je vais au programme de cette vidéo je vais "
+        "vous montrer"
+    )
+    assert collapse_repeated_phrases(texte) == (
+        "au programme de cette vidéo je vais vous montrer"
+    )
 
 
 def test_collapse_repeated_phrases_converge_au_dela_de_deux_repetitions():
