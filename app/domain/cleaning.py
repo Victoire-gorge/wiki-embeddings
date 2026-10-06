@@ -162,7 +162,9 @@ def _collapse_once(mots: list[str], fenetre_max: int) -> list[str]:
     return sortie
 
 
-def collapse_repeated_phrases(text: str, fenetre_max: int = 12, max_iter: int = 20) -> str:
+def collapse_repeated_phrases(
+    text: str, fenetre_max: int = 12, max_iter: int = 20
+) -> str:
     """Replie les répétitions immédiates de mots ou de groupes de mots.
 
     Le sous-titrage automatique (YouTube) défile par fenêtre glissante : un
