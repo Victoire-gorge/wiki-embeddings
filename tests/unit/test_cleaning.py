@@ -318,6 +318,15 @@ def test_collapse_repeated_phrases_sur_une_transcription_tres_longue_ne_bloque_p
     assert resultat == "le chat mange la souris"
 
 
+def test_collapse_repeated_phrases_leve_une_erreur_si_le_budget_est_insuffisant():
+    # "x" x8 ne converge pas en une seule passe (8 -> 4 -> 2) : avec max_iter=1,
+    # le budget s'épuise avant d'atteindre un point fixe. Un texte à moitié
+    # replié ne doit jamais repartir en silence vers la vectorisation.
+    texte = " ".join(["x"] * 8)
+    with pytest.raises(RuntimeError):
+        collapse_repeated_phrases(texte, max_iter=1)
+
+
 @pytest.mark.parametrize(
     "texte, attendu",
     [
