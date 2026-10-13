@@ -20,6 +20,48 @@ import mwparserfromhell
 # visible, [[:Catégorie:X|alias]], que strip_code() doit garder.
 _LIEN_INVISIBLE = re.compile(r"^(cat[ée]gorie|category):|^[a-z]{2,3}:", re.IGNORECASE)
 
+# Lien image, [[Image:X]] / [[Fichier:X]] / [[File:X]]. Mesuré sur 974 liens :
+# 951 (97,6 %) ont des paramètres (position, taille, légende), et parmi eux
+# 854 (90 %) ont une vraie légende — du vrai contenu descriptif ("Faucon
+# crécerelle"), noyé dans des mots-clés de mise en page que mwparserfromhell
+# ne comprend pas comme une syntaxe à paramètres multiples : strip_code()
+# recrache tout après le premier "|" tel quel, "|" compris ("vignette|Faucon
+# crécerelle"). Les 23 liens sans aucun paramètre ne sont jamais une légende
+# écrite par un humain — souvent juste le titre de la page redit en nom de
+# fichier — donc retirés sans tenter de les garder comme texte.
+_IMAGE = re.compile(r"^(image|fichier|file):", re.IGNORECASE)
+
+_MOTS_CLES_IMAGE = {
+    "thumb", "thumbnail", "vignette", "frame", "framed", "frameless",
+    "border", "bordure",
+    "left", "right", "center", "centre", "none", "gauche", "droite",
+    "baseline", "sub", "super", "top", "text-top", "middle", "bottom", "text-bottom",
+}
+_TAILLE_IMAGE = re.compile(r"^\d+x?\d*px$", re.IGNORECASE)
+
+
+def _legende_image(texte_parametres: str) -> str | None:
+    """Extrait la légende d'un lien image parmi ses paramètres `|`-séparés.
+
+    Ignore les mots-clés de mise en page (position, format) et les tailles
+    ("300px", "600x400px"). Rend `None` quand aucune légende ne subsiste —
+    pur bruit de mise en page, rien à garder.
+    """
+    legende = None
+    for segment in texte_parametres.split("|"):
+        segment = segment.strip()
+        if not segment:
+            continue
+        bas = segment.lower()
+        if (
+            bas in _MOTS_CLES_IMAGE
+            or _TAILLE_IMAGE.match(segment)
+            or bas.startswith(("alt=", "link=", "upright="))
+        ):
+            continue
+        legende = segment
+    return legende
+
 # Résidu d'un lien de catégorie dont les crochets ont été oubliés à l'édition
 # ou à l'import : ":Catégorie:Chêne|chêne" en texte brut, pas un nœud wiki
 # (pas de "[[" du tout), donc invisible pour mwparserfromhell — strip_code()
@@ -207,18 +249,24 @@ def strip_introductory_phrase(text: str) -> str:
 def clean_markup(wikitext: str) -> str:
     """Convertit du wikitext (hors tableaux, déjà extraits ailleurs) en texte.
 
-    Cinq retraits, tous mesurés sur ce wiki — deux avant `strip_code()`, trois
+    Six retraits, tous mesurés sur ce wiki — trois avant `strip_code()`, trois
     après :
 
     - les balises `<ref>` : `strip_code()` garde leur contenu et le soude au
       mot précédent sans espace ("la parcelleSource : étude X") — une
       citation n'est de toute façon pas la prose de la section ;
+    - les liens image (`[[Image:X]]`/`[[Fichier:X]]`/`[[File:X]]`) : remplacés
+      par leur légende si elle existe (mwparserfromhell ne comprend pas la
+      syntaxe à paramètres multiples des images — sans ce retrait,
+      `strip_code()` recrache les mots-clés de mise en page et les "|" tels
+      quels, "vignette|Faucon crécerelle") ; retirés entièrement sinon (un nom
+      de fichier nu n'est jamais une légende écrite par un humain) ;
     - les liens wiki invisibles sur la page rendue (catégorisation,
       interlangue) : `strip_code()` ne sait pas qu'ils sont invisibles et en
       affiche le titre comme texte ("Category:Anthracnose") ;
     - après `strip_code()`, le résidu d'un lien de catégorie dont les crochets
       ont été oubliés (":Catégorie:Chêne|chêne") : ce n'est pas un nœud wiki,
-      donc invisible pour les deux retraits précédents ;
+      donc invisible pour les retraits précédents ;
     - les URLs nues (`strip_urls`) ;
     - les blocs de configuration de graphique (`strip_chart_blocks`) : comme
       le résidu de catégorie, invisibles pour mwparserfromhell, donc traités
@@ -236,6 +284,13 @@ def clean_markup(wikitext: str) -> str:
 
     for link in code.filter_wikilinks():
         title = str(link.title).strip()
+        if _IMAGE.match(title):
+            legende = _legende_image(str(link.text)) if link.text is not None else None
+            if legende:
+                link.text = legende
+            else:
+                code.remove(link)
+            continue
         if not title.startswith(":") and _LIEN_INVISIBLE.match(title):
             code.remove(link)
 

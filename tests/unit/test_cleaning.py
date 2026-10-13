@@ -93,6 +93,41 @@ def test_clean_markup_retire_les_liens_interlangues():
     assert clean_markup(texte) == "Fin de l'article."
 
 
+def test_clean_markup_retire_une_image_sans_parametre():
+    # [[Image:X]] nu : juste un nom de fichier, jamais une légende écrite par
+    # un humain — pas d'information à garder, même nettoyé des "_".
+    texte = "Voir [[Image:Schema.png]] ci-dessous."
+    assert clean_markup(texte) == "Voir ci-dessous."
+
+
+def test_clean_markup_retire_une_image_sans_legende():
+    # Mesuré : 10 % des liens image avec paramètres n'ont que des mots-clés
+    # de mise en page (position, taille), aucune légende — pur bruit.
+    texte = "Voir [[Fichier:Schema.png|vignette|300px]] ci-dessous."
+    assert clean_markup(texte) == "Voir ci-dessous."
+
+
+def test_clean_markup_garde_la_legende_d_une_image():
+    # Mesuré : 90 % des liens image avec paramètres ont une vraie légende,
+    # noyée dans les mots-clés de mise en page — à en extraire, pas à jeter.
+    texte = "[[Fichier:Faucon.jpg|vignette|droite|Faucon crécerelle]]"
+    assert clean_markup(texte) == "Faucon crécerelle"
+
+
+def test_clean_markup_nettoie_le_markup_a_l_interieur_d_une_legende():
+    texte = (
+        "[[Fichier:Fabaceae.jpg|vignette|Évolution des feuilles chez les "
+        "''Fabaceae''.]]"
+    )
+    assert clean_markup(texte) == "Évolution des feuilles chez les Fabaceae."
+
+
+def test_clean_markup_reconnait_image_fichier_et_file():
+    for prefixe in ("Image", "Fichier", "File"):
+        texte = f"[[{prefixe}:x.jpg|vignette|Légende commune]]"
+        assert clean_markup(texte) == "Légende commune"
+
+
 def test_clean_markup_garde_les_liens_de_categorie_avec_deux_points_et_alias():
     # [[:Catégorie:X|alias]], AVEC le ":" initial, est un lien de renvoi
     # normal et visible — le ":" initial est ce qui distingue les deux cas.
