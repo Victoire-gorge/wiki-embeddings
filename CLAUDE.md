@@ -242,6 +242,9 @@ contrainte en base.
   en recomptant après application. Se déclencher « au cas où » ajoute de la variabilité sans
   contrepartie. Voir `app/domain/cleaning.py`, dont les commentaires portent les mesures qui
   justifient chaque règle.
+- **Les règles de nettoyage actuelles sont écrites pour le français**, la langue de cette
+  instance (`xml:lang="fr"`). Mesuré : 0,17 % des pages ont un contenu majoritairement non
+  français malgré ça — volume trop faible pour une règle dédiée aujourd'hui.
 
 ## Modèle d'unités
 
