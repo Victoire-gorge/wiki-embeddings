@@ -3,8 +3,10 @@ import pytest
 from app.domain.cleaning import (
     clean_markup,
     collapse_repeated_phrases,
+    strip_chart_blocks,
     strip_introductory_phrase,
     strip_reporting_frame,
+    strip_urls,
 )
 
 
@@ -140,6 +142,69 @@ def test_clean_markup_garde_un_vrai_lien_categorie_sans_alias():
     # ci-dessus. strip_code() garde le ":" initial tel quel.
     texte = "sur la [[:Catégorie:Gestion des ravageurs]]"
     assert clean_markup(texte) == "sur la :Catégorie:Gestion des ravageurs"
+
+
+def test_strip_urls_retire_une_url_en_milieu_de_texte():
+    texte = "Voir https://example.com/page pour plus d'infos."
+    assert strip_urls(texte) == "Voir pour plus d'infos."
+
+
+def test_strip_urls_retire_les_parentheses_qui_ne_contenaient_que_l_url():
+    # Une parenthèse vide une fois l'URL retirée ne porte aucune information.
+    texte = "Cette étude (https://example.com/etude) confirme les résultats."
+    assert strip_urls(texte) == "Cette étude confirme les résultats."
+
+
+def test_strip_urls_garde_la_parenthese_si_autre_chose_y_figure():
+    # Ici la parenthèse contient aussi "voir " : elle reste, seule l'URL part.
+    texte = "Cette étude (voir https://example.com/etude) confirme les résultats."
+    assert strip_urls(texte) == "Cette étude (voir ) confirme les résultats."
+
+
+def test_strip_urls_retire_plusieurs_urls():
+    texte = "Deux sources : https://a.example.com et https://b.example.com/page."
+    assert strip_urls(texte) == "Deux sources : et ."
+
+
+def test_strip_urls_laisse_intact_un_texte_sans_url():
+    texte = "Les engrais verts sont implantés après récolte."
+    assert strip_urls(texte) == texte
+
+
+def test_clean_markup_retire_aussi_les_urls():
+    texte = "Pour en savoir plus : https://example.com/etude."
+    assert clean_markup(texte) == "Pour en savoir plus : ."
+
+
+def test_strip_chart_blocks_retire_un_bloc_echarts_avec_json_imbrique():
+    # {{#echarts: ... }} n'est jamais reconnu comme template par
+    # mwparserfromhell (0 détecté, mesuré) — strip_code() le laisse donc
+    # passer tel quel. Le JSON interne contient de nombreuses accolades non
+    # appariées pour un couple {{ }} : un simple ".*?}}" non gourmand s'arrête
+    # à la première fermeture d'objet JSON, bien avant la vraie fin du bloc.
+    texte = (
+        "Avant.\n"
+        "{{#echarts:\n  title=Rotation\n| option = "
+        '{"tooltip":{},"series":[{"type":"pie","data":['
+        '{"name":"a","value":1},{"name":"b","value":2}]}]}'
+        "\n}}\n"
+        "Après."
+    )
+    assert strip_chart_blocks(texte) == "Avant.\n\nAprès."
+
+
+def test_strip_chart_blocks_laisse_intact_un_texte_sans_graphique():
+    texte = "Les engrais verts sont implantés après récolte."
+    assert strip_chart_blocks(texte) == texte
+
+
+def test_clean_markup_retire_aussi_les_blocs_de_graphique():
+    texte = (
+        "Avant.\n"
+        '{{#echarts:\n| option = {"series":[{"data":[{"name":"a"}]}]}\n}}\n'
+        "Après."
+    )
+    assert clean_markup(texte) == "Avant.\n\nAprès."
 
 
 def test_collapse_repeated_phrases_garde_le_texte_sans_repetition_intact():
