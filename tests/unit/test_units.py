@@ -1,11 +1,18 @@
 from pathlib import Path
 
 from app.domain.units import (
+    atomiser,
     est_page_json,
     extract_tables,
     splice_video_fields,
     split_into_sections,
 )
+
+
+def _compte_mots(texte: str) -> int:
+    """Compteur trivial pour les tests : un mot = un token — pas besoin de
+    tiktoken pour tester une cascade de découpage, seul le comptage change."""
+    return len(texte.split())
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
@@ -258,3 +265,59 @@ def test_est_page_json_rejette_du_wikitexte_qui_contient_juste_des_accolades():
     # confondre un template wiki avec un objet.
     wikitext = "{{Pages liées}}"
     assert est_page_json(wikitext) is False
+
+
+def test_atomiser_garde_un_texte_court_intact():
+    texte = "Les engrais verts sont implantés après récolte."
+    assert atomiser(texte, cible=20, compte_tokens=_compte_mots) == [texte]
+
+
+def test_atomiser_coupe_par_paragraphe_quand_necessaire():
+    texte = "Premier paragraphe court.\n\nDeuxième paragraphe aussi court."
+    atomes = atomiser(texte, cible=4, compte_tokens=_compte_mots)
+    assert atomes == ["Premier paragraphe court.", "Deuxième paragraphe aussi court."]
+
+
+def test_atomiser_descend_aux_phrases_si_le_paragraphe_depasse():
+    texte = "Première phrase courte. Deuxième phrase courte aussi. Troisième phrase."
+    atomes = atomiser(texte, cible=4, compte_tokens=_compte_mots)
+    assert atomes == [
+        "Première phrase courte.",
+        "Deuxième phrase courte aussi.",
+        "Troisième phrase.",
+    ]
+
+
+def test_atomiser_tombe_sur_la_coupe_equilibree_sans_ponctuation():
+    # Le cas transcription : ni ligne vide, ni ponctuation forte.
+    texte = " ".join(["mot"] * 20)
+    atomes = atomiser(texte, cible=6, compte_tokens=_compte_mots)
+    assert len(atomes) == 4  # ceil(20 / 6)
+    assert all(_compte_mots(a) <= 6 for a in atomes)
+
+
+def test_atomiser_rejette_les_paragraphes_vides():
+    # cible=3 force la cascade : à cible=10, les 4 mots du texte entier
+    # rentreraient déjà sans la déclencher, et le test ne prouverait rien.
+    texte = "Premier paragraphe.\n\n\n\nDeuxième paragraphe."
+    atomes = atomiser(texte, cible=3, compte_tokens=_compte_mots)
+    assert atomes == ["Premier paragraphe.", "Deuxième paragraphe."]
+
+
+def test_atomiser_ne_rend_rien_pour_un_texte_vide():
+    assert atomiser("   ", cible=10, compte_tokens=_compte_mots) == []
+
+
+def test_atomiser_ne_perd_et_ne_duplique_aucun_mot():
+    # L'invariant le plus utile : la concaténation des atomes redonne le
+    # texte d'origine, mot pour mot — il attrape à la fois la perte et la
+    # duplication, contrairement à une simple vérification de tailles.
+    texte = (
+        "Premier paragraphe avec plusieurs phrases courtes. Une deuxième "
+        "phrase ici pour faire bonne mesure.\n\n"
+        "Second paragraphe plus long sans aucune ponctuation forte dedans "
+        "qui va forcer une coupe equilibree a un moment ou un autre du "
+        "texte puisque rien ne permet de le decouper autrement du tout"
+    )
+    atomes = atomiser(texte, cible=8, compte_tokens=_compte_mots)
+    assert " ".join(" ".join(atomes).split()) == " ".join(texte.split())

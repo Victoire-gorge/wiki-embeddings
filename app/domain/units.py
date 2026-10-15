@@ -9,9 +9,17 @@ découper.
 from __future__ import annotations
 
 import json
+import math
+import re
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import mwparserfromhell
+
+# Frontière de phrase : ponctuation forte suivie d'une espace. Même
+# définition que la mesure 3 du notebook de calibrage, pour rester cohérent
+# avec ce qui a servi à décider si cette cascade était nécessaire.
+_FIN_DE_PHRASE = re.compile(r"(?<=[.!?])\s+")
 
 
 def est_page_json(wikitext: str) -> bool:
@@ -209,3 +217,73 @@ def split_into_sections(wikitext: str) -> list[RawSection]:
         )
 
     return raw_sections
+
+
+def _decouper_phrases(texte: str) -> list[str]:
+    return [p for p in _FIN_DE_PHRASE.split(texte) if p]
+
+
+def _coupe_equilibree(
+    texte: str, cible: int, compte_tokens: Callable[[str], int]
+) -> list[str]:
+    """Dernier recours : découpe par nombre de mots, à défaut de ponctuation.
+
+    Approximatif par construction — répartit les *mots* en parts égales,
+    pas les tokens, pour n'appeler `compte_tokens` qu'une fois sur
+    l'ensemble plutôt qu'à chaque mot. Assez bon : la taille cible n'a pas
+    besoin d'être exacte (480 ou 520 tokens sont indiscernables pour un
+    embedding), et le pire mot isolé mesuré sur ce wiki fait 46 tokens —
+    largement sous toute taille cible envisagée, donc jamais de quoi faire
+    déborder une part de façon significative.
+    """
+    mots = texte.split()
+    k = math.ceil(compte_tokens(texte) / cible)
+    taille = math.ceil(len(mots) / k)
+    return [
+        " ".join(mots[i:i + taille])
+        for i in range(0, len(mots), taille)
+    ]
+
+
+def atomiser(
+    texte: str, cible: int, compte_tokens: Callable[[str], int]
+) -> list[str]:
+    """Découpe `texte` en atomes qui tiennent chacun sous `cible` tokens.
+
+    Cascade, chaque niveau n'intervenant que si le précédent ne suffit pas :
+
+    1. un paragraphe (séparé par une ligne vide) qui tient déjà sous `cible`
+       est un atome tel quel ;
+    2. sinon, ses phrases ;
+    3. sinon, une coupe équilibrée par nombre de mots (`_coupe_equilibree`) —
+       le cas des transcriptions, qui n'ont ni paragraphe ni ponctuation
+       forte (mesuré : moins de 2 % en ont une tous les ~1300 tokens).
+
+    `compte_tokens` est injecté plutôt qu'un appel direct à `tiktoken` : ça
+    garde cette transformation testable sans réseau, et laisse la place à
+    un second tokenizer pour le futur `EmbeddingBackend` local.
+
+    Un paragraphe vide (ligne vide répétée) ne produit aucun atome — pas une
+    unité à filtrer plus tard, simplement rien à découper.
+    """
+    texte = texte.strip()
+    if not texte:
+        return []
+    if compte_tokens(texte) <= cible:
+        return [texte]
+
+    paragraphes = [p for p in texte.split("\n\n") if p.strip()]
+    if len(paragraphes) > 1:
+        atomes = []
+        for paragraphe in paragraphes:
+            atomes.extend(atomiser(paragraphe, cible, compte_tokens))
+        return atomes
+
+    phrases = _decouper_phrases(texte)
+    if len(phrases) > 1:
+        atomes = []
+        for phrase in phrases:
+            atomes.extend(atomiser(phrase, cible, compte_tokens))
+        return atomes
+
+    return _coupe_equilibree(texte, cible, compte_tokens)
