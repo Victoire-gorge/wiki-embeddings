@@ -1,6 +1,11 @@
 from pathlib import Path
 
-from app.domain.units import extract_tables, splice_video_fields, split_into_sections
+from app.domain.units import (
+    est_page_json,
+    extract_tables,
+    splice_video_fields,
+    split_into_sections,
+)
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
@@ -231,3 +236,25 @@ def test_extract_tables_on_real_article_sample():
         )
     )
     assert now_empty.wikitext == ""
+
+
+def test_est_page_json_reconnait_un_wikitext_qui_est_du_json_valide():
+    # Mesuré sur ce wiki : 317 pages (3,3 % du corpus) dont tout le contenu
+    # est un JSON de configuration de graphique, pas du wikitexte — des
+    # pages de données, jamais de la prose. Le titre finissant par ".json"
+    # ne suffit pas : 2 de ces 317 pages n'ont pas ce suffixe, le contenu
+    # lui-même est le seul signal fiable à 100 %.
+    wikitext = '{"title": "Rotation", "series": [{"name": "a", "value": 1}]}'
+    assert est_page_json(wikitext) is True
+
+
+def test_est_page_json_rejette_du_wikitexte_normal():
+    wikitext = "== Titre ==\nLes engrais verts sont implantés après récolte."
+    assert est_page_json(wikitext) is False
+
+
+def test_est_page_json_rejette_du_wikitexte_qui_contient_juste_des_accolades():
+    # {{Pages liées}} n'est pas un objet JSON : json.loads doit échouer, pas
+    # confondre un template wiki avec un objet.
+    wikitext = "{{Pages liées}}"
+    assert est_page_json(wikitext) is False

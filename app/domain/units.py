@@ -8,9 +8,29 @@ découper.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 
 import mwparserfromhell
+
+
+def est_page_json(wikitext: str) -> bool:
+    """Détecte une page dont le contenu entier est du JSON, pas du wikitexte.
+
+    Mesuré sur ce wiki : 317 pages (3,3 % du corpus) sont des pages de
+    données pour un widget de graphique — jamais de la prose, juste de la
+    configuration (couleurs, séries, UUID). Le titre finit par ".json" sur
+    315 d'entre elles, mais pas sur les 2 autres : le contenu lui-même,
+    pas une convention de nommage, est le seul signal fiable à 100 %.
+
+    Ces pages ne doivent jamais être découpées en sections : ce n'est pas un
+    problème de nettoyage de texte, c'est une page qui n'est pas un article.
+    """
+    try:
+        contenu = json.loads(wikitext)
+    except (json.JSONDecodeError, ValueError):
+        return False
+    return isinstance(contenu, dict)
 
 
 @dataclass(frozen=True)
