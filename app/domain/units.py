@@ -287,3 +287,52 @@ def atomiser(
         return atomes
 
     return _coupe_equilibree(texte, cible, compte_tokens)
+
+
+def remplir(
+    atomes: list[str], cible: int, plancher: int, compte_tokens: Callable[[str], int]
+) -> list[str]:
+    """Empile des atomes en groupes qui tiennent chacun sous `cible`.
+
+    Glouton : ajoute un atome au groupe courant tant que ça tient, ferme le
+    groupe et en ouvre un nouveau dès que le suivant ne rentre plus.
+
+    Recollage : un groupe qui tombe sous `plancher` une fois isolé est
+    rattaché à un voisin (le précédent si possible, sinon le suivant)
+    plutôt que laissé seul — en acceptant que le groupe obtenu dépasse
+    `cible` d'autant. Pas seulement le dernier groupe : un titre court suivi
+    d'une première phrase courte peut produire un groupe de tête tout aussi
+    isolé (mesuré sur ce wiki — ex. "Céréales > Principales variétés").
+    C'est la seule fusion conservée dans tout le pipeline, et elle est sûre :
+    elle ne recolle que des atomes voisins d'une même section, jamais deux
+    sujets différents.
+    """
+    groupes: list[list[str]] = []
+    groupe_courant: list[str] = []
+    taille_courante = 0
+
+    for atome in atomes:
+        taille_atome = compte_tokens(atome)
+        if groupe_courant and taille_courante + taille_atome > cible:
+            groupes.append(groupe_courant)
+            groupe_courant = []
+            taille_courante = 0
+        groupe_courant.append(atome)
+        taille_courante += taille_atome
+
+    if groupe_courant:
+        groupes.append(groupe_courant)
+
+    i = 0
+    while len(groupes) > 1 and i < len(groupes):
+        if compte_tokens(" ".join(groupes[i])) < plancher:
+            if i > 0:
+                groupes[i - 1].extend(groupes[i])
+                del groupes[i]
+            else:
+                groupes[1] = groupes[0] + groupes[1]
+                del groupes[0]
+            continue  # le groupe à cette position vient de changer, réévaluer
+        i += 1
+
+    return [" ".join(groupe) for groupe in groupes]

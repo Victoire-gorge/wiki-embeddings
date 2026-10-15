@@ -4,6 +4,7 @@ from app.domain.units import (
     atomiser,
     est_page_json,
     extract_tables,
+    remplir,
     splice_video_fields,
     split_into_sections,
 )
@@ -321,3 +322,50 @@ def test_atomiser_ne_perd_et_ne_duplique_aucun_mot():
     )
     atomes = atomiser(texte, cible=8, compte_tokens=_compte_mots)
     assert " ".join(" ".join(atomes).split()) == " ".join(texte.split())
+
+
+def test_remplir_empile_des_atomes_tant_que_ca_rentre():
+    atomes = ["un deux trois", "quatre cinq six", "sept huit neuf dix"]
+    groupes = remplir(atomes, cible=6, plancher=1, compte_tokens=_compte_mots)
+    assert groupes == ["un deux trois quatre cinq six", "sept huit neuf dix"]
+
+
+def test_remplir_ferme_un_groupe_des_que_le_suivant_ne_rentre_plus():
+    atomes = ["un deux trois quatre cinq", "six"]
+    groupes = remplir(atomes, cible=5, plancher=1, compte_tokens=_compte_mots)
+    assert groupes == ["un deux trois quatre cinq", "six"]
+
+
+def test_remplir_recolle_la_queue_sous_le_plancher():
+    # "six sept" (2 mots) tombe sous le plancher (3) une fois seul dans son
+    # propre groupe : recollé au précédent, même si ça dépasse la cible.
+    atomes = ["un deux trois quatre cinq", "six sept"]
+    groupes = remplir(atomes, cible=5, plancher=3, compte_tokens=_compte_mots)
+    assert groupes == ["un deux trois quatre cinq six sept"]
+
+
+def test_remplir_ne_recolle_pas_si_la_queue_depasse_le_plancher():
+    atomes = ["un deux trois quatre cinq", "six sept huit"]
+    groupes = remplir(atomes, cible=5, plancher=3, compte_tokens=_compte_mots)
+    assert groupes == ["un deux trois quatre cinq", "six sept huit"]
+
+
+def test_remplir_recolle_un_groupe_de_tete_sous_le_plancher():
+    # Trouvé sur le corpus réel ("Céréales > Principales variétés") : un
+    # titre court suivi d'une première phrase courte peut former un premier
+    # groupe isolé sous le plancher — pas seulement le dernier.
+    atomes = ["titre court", "une phrase plus longue avec six mots exactement"]
+    groupes = remplir(atomes, cible=6, plancher=3, compte_tokens=_compte_mots)
+    assert groupes == ["titre court une phrase plus longue avec six mots exactement"]
+
+
+def test_remplir_sur_un_seul_atome_le_rend_tel_quel():
+    atomes = ["un seul atome ici"]
+    groupes = remplir(atomes, cible=10, plancher=1, compte_tokens=_compte_mots)
+    assert groupes == ["un seul atome ici"]
+
+
+def test_remplir_ne_perd_et_ne_duplique_aucun_mot():
+    atomes = ["un deux trois", "quatre cinq", "six sept huit neuf", "dix"]
+    groupes = remplir(atomes, cible=4, plancher=2, compte_tokens=_compte_mots)
+    assert " ".join(" ".join(groupes).split()) == " ".join(" ".join(atomes).split())
