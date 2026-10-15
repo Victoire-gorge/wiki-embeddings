@@ -8,6 +8,8 @@ markup, sur du texte déjà normalisé.
 from __future__ import annotations
 
 import re
+import unicodedata
+from urllib.parse import unquote
 
 import mwparserfromhell
 
@@ -232,6 +234,33 @@ def strip_reporting_frame(text: str) -> str:
     return _TOURNURE_DE_RAPPORT.sub("", text)
 
 
+def normalize_unicode(text: str) -> str:
+    """Normalise les formes Unicode de compatibilité (NFKC).
+
+    Mesuré sur ce wiki : des légendes copiées depuis Instagram utilisent des
+    lettres du bloc Unicode "Mathematical Alphanumeric Symbols" pour simuler
+    du gras ("𝗔𝗰𝗰𝗼𝗴𝗶𝘁" au lieu de "Accompagnement") — visuellement
+    identique, mais `tiktoken` ne connaît pas ces caractères et en découpe
+    chacun en plusieurs tokens (un mot de 15 caractères gonflait à 45
+    tokens). NFKC convertit ces variantes vers leur forme normale.
+
+    À appeler avant toute reconnaissance de motif sur le texte : c'est ce que
+    suppose déjà `strip_introductory_phrase` sans le garantir jusqu'ici.
+    """
+    return unicodedata.normalize("NFKC", text)
+
+
+def strip_url_encoding(text: str) -> str:
+    """Décode les séquences %XX laissées par un lien externe qui recopie son
+    URL comme texte affiché, au lieu d'un titre lisible.
+
+    Mesuré sur ce wiki : 4 pages, 20 séquences, toutes de vrais encodages
+    ("%20" = espace, "%C3%A9" = "é" en UTF-8) — aucun pourcentage suivi de
+    deux caractères qui ressembleraient par hasard à de l'hexadécimal.
+    """
+    return unquote(text)
+
+
 def strip_introductory_phrase(text: str) -> str:
     """Retire une locution introductive en tête de texte, si elle s'y trouve.
 
@@ -249,8 +278,8 @@ def strip_introductory_phrase(text: str) -> str:
 def clean_markup(wikitext: str) -> str:
     """Convertit du wikitext (hors tableaux, déjà extraits ailleurs) en texte.
 
-    Six retraits, tous mesurés sur ce wiki — trois avant `strip_code()`, trois
-    après :
+    Huit retraits, tous mesurés sur ce wiki — trois avant `strip_code()`,
+    cinq après :
 
     - les balises `<ref>` : `strip_code()` garde leur contenu et le soude au
       mot précédent sans espace ("la parcelleSource : étude X") — une
@@ -267,10 +296,15 @@ def clean_markup(wikitext: str) -> str:
     - après `strip_code()`, le résidu d'un lien de catégorie dont les crochets
       ont été oubliés (":Catégorie:Chêne|chêne") : ce n'est pas un nœud wiki,
       donc invisible pour les retraits précédents ;
-    - les URLs nues (`strip_urls`) ;
+    - la normalisation Unicode (`normalize_unicode`), juste après
+      `strip_code()` et avant tout le reste : les retraits qui suivent
+      reconnaissent des motifs de texte, pas des caractères équivalents ;
     - les blocs de configuration de graphique (`strip_chart_blocks`) : comme
       le résidu de catégorie, invisibles pour mwparserfromhell, donc traités
-      après `strip_code()`.
+      après `strip_code()` ;
+    - les séquences `%XX` d'un lien externe qui recopie son URL comme texte
+      affiché (`strip_url_encoding`) ;
+    - les URLs nues (`strip_urls`).
 
     Les templates restent sinon gérés par `strip_code()` seul : mesuré sur ce
     wiki, ceux qui apparaissent dans le corps d'une section (hors lead/
@@ -295,8 +329,10 @@ def clean_markup(wikitext: str) -> str:
             code.remove(link)
 
     text = code.strip_code()
+    text = normalize_unicode(text)
     text = _RESIDU_CATEGORIE_SANS_CROCHETS.sub("", text)
     text = strip_chart_blocks(text)
+    text = strip_url_encoding(text)
     text = strip_urls(text)
     # Espaces/tabulations en double laissés par un nœud retiré — pas les
     # sauts de ligne, qui séparent des paragraphes et doivent rester.

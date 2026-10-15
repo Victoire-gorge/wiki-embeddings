@@ -3,11 +3,48 @@ import pytest
 from app.domain.cleaning import (
     clean_markup,
     collapse_repeated_phrases,
+    normalize_unicode,
     strip_chart_blocks,
     strip_introductory_phrase,
     strip_reporting_frame,
+    strip_url_encoding,
     strip_urls,
 )
+
+
+def test_normalize_unicode_convertit_le_gras_instagram():
+    # Bloc Unicode "Mathematical Alphanumeric Symbols", utilisé pour simuler
+    # du gras dans des légendes copiées depuis Instagram — visuellement
+    # identique à du texte normal, mais tiktoken découpe chacun de ces
+    # caractères en plusieurs tokens (mesuré : un mot de 15 caractères
+    # gonflait à 45 tokens).
+    gras = chr(0x1D400) + chr(0x1D41C) + chr(0x1D41C) + chr(0x1D428)
+    assert normalize_unicode(gras) == "Acco"
+
+
+def test_normalize_unicode_laisse_intact_un_texte_normal():
+    texte = "Les engrais verts sont implantés après récolte."
+    assert normalize_unicode(texte) == texte
+
+
+def test_strip_url_encoding_decode_les_espaces():
+    texte = "FRAB%20AURA%20-%20Les%20sols.pdf"
+    assert strip_url_encoding(texte) == "FRAB AURA - Les sols.pdf"
+
+
+def test_strip_url_encoding_decode_les_accents_utf8():
+    texte = "Pr%C3%A9sentation"
+    assert strip_url_encoding(texte) == "Présentation"
+
+
+def test_strip_url_encoding_laisse_intact_un_texte_sans_encodage():
+    texte = "Les engrais verts sont implantés après récolte."
+    assert strip_url_encoding(texte) == texte
+
+
+def test_clean_markup_decode_le_texte_affiche_d_un_lien_externe():
+    texte = "[https://example.com/x.pdf FRAB%20AURA.pdf]"
+    assert clean_markup(texte) == "FRAB AURA.pdf"
 
 
 @pytest.mark.parametrize(
