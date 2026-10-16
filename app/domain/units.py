@@ -12,6 +12,7 @@ import hashlib
 import json
 import math
 import re
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -354,6 +355,13 @@ class Unit:
     `construire_unites`, pas à la page entière : renuméroter à l'échelle de
     la page revient à l'appelant qui combine plusieurs sections, puisque
     cette fonction ne voit qu'une section à la fois.
+
+    `page_id` et `unit_id` valent `None` tant que cette fonction les rend :
+    elle ne connaît pas `page_id`, donc ne peut pas calculer `unit_id`
+    (`uuid5(page_id + content_hash + occurrence)`) elle-même. Même
+    convention que `embedded_at` dans la table `units` — `None` signifie
+    « pas encore calculé », pas « n'existe pas ». C'est
+    `construire_unites_page` (`app/domain/pipeline.py`) qui les remplit.
     """
 
     unit_index: int
@@ -361,6 +369,8 @@ class Unit:
     text: str
     content_hash: str
     token_count: int
+    page_id: int | None = None
+    unit_id: uuid.UUID | None = None
 
 
 def construire_unites(
