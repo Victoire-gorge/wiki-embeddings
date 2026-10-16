@@ -1,4 +1,4 @@
-from app.domain.pipeline import construire_unites_page
+from app.domain.construction_unites import construire_unites_page
 
 
 def _compte_mots(texte: str) -> int:
