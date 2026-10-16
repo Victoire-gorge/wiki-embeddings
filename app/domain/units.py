@@ -8,6 +8,7 @@ découper.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import re
@@ -336,3 +337,70 @@ def remplir(
         i += 1
 
     return [" ".join(groupe) for groupe in groupes]
+
+
+@dataclass(frozen=True)
+class Unit:
+    """Une unité finale — le fragment prêt à stocker et vectoriser.
+
+    `unit_index` est relatif aux unités rendues par un seul appel de
+    `construire_unites`, pas à la page entière : renuméroter à l'échelle de
+    la page revient à l'appelant qui combine plusieurs sections, puisque
+    cette fonction ne voit qu'une section à la fois.
+    """
+
+    unit_index: int
+    heading: str | None
+    text: str
+    content_hash: str
+    token_count: int
+
+
+def construire_unites(
+    heading: str | None,
+    corps: str,
+    cible: int,
+    plancher: int,
+    compte_tokens: Callable[[str], int],
+) -> list[Unit]:
+    """Transforme le corps nettoyé d'une `RawSection` en zéro, une ou plusieurs `Unit`.
+
+    Zéro si le corps est vide, ou si le texte complet (titre compris) tombe
+    sous `plancher` — une section trop courte est jetée, jamais fusionnée
+    avec sa voisine (`CLAUDE.md` : fusionner coulerait deux idées distinctes
+    dans un vecteur qui ne représente ni l'une ni l'autre).
+
+    Le titre est inclus dans le budget de **chaque** morceau si la section
+    se scinde, pas combiné une seule fois avant découpage : sinon les
+    morceaux après le premier perdraient tout contexte de section une fois
+    vectorisés.
+    """
+    corps = corps.strip()
+    if not corps:
+        return []
+
+    prefixe = f"{heading}\n" if heading else ""
+    if compte_tokens(prefixe + corps) < plancher:
+        return []
+
+    if compte_tokens(prefixe + corps) <= cible:
+        textes = [corps]
+        cible_corps = cible
+    else:
+        cible_corps = max(1, cible - compte_tokens(prefixe))
+        atomes = atomiser(corps, cible_corps, compte_tokens)
+        textes = remplir(atomes, cible_corps, plancher, compte_tokens)
+
+    unites = []
+    for index, morceau in enumerate(textes):
+        texte = prefixe + morceau
+        unites.append(
+            Unit(
+                unit_index=index,
+                heading=heading,
+                text=texte,
+                content_hash=hashlib.sha256(texte.encode()).hexdigest(),
+                token_count=compte_tokens(texte),
+            )
+        )
+    return unites

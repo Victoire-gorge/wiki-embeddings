@@ -2,6 +2,7 @@ from pathlib import Path
 
 from app.domain.units import (
     atomiser,
+    construire_unites,
     est_page_json,
     extract_tables,
     remplir,
@@ -369,3 +370,81 @@ def test_remplir_ne_perd_et_ne_duplique_aucun_mot():
     atomes = ["un deux trois", "quatre cinq", "six sept huit neuf", "dix"]
     groupes = remplir(atomes, cible=4, plancher=2, compte_tokens=_compte_mots)
     assert " ".join(" ".join(groupes).split()) == " ".join(" ".join(atomes).split())
+
+
+def test_construire_unites_rend_une_seule_unite_si_ca_tient():
+    unites = construire_unites(
+        heading="Titre",
+        corps="Un corps de texte assez court.",
+        cible=20,
+        plancher=2,
+        compte_tokens=_compte_mots,
+    )
+    assert len(unites) == 1
+    assert unites[0].heading == "Titre"
+    assert unites[0].text == "Titre\nUn corps de texte assez court."
+    assert unites[0].unit_index == 0
+    assert unites[0].token_count == _compte_mots(unites[0].text)
+
+
+def test_construire_unites_sans_titre_ne_prefixe_rien():
+    unites = construire_unites(
+        heading=None,
+        corps="Un texte sans titre associé.",
+        cible=20,
+        plancher=2,
+        compte_tokens=_compte_mots,
+    )
+    assert unites[0].text == "Un texte sans titre associé."
+    assert unites[0].heading is None
+
+
+def test_construire_unites_rejette_un_corps_vide():
+    unites = construire_unites(
+        heading="Titre", corps="   ", cible=20, plancher=2, compte_tokens=_compte_mots
+    )
+    assert unites == []
+
+
+def test_construire_unites_rejette_sous_le_plancher():
+    unites = construire_unites(
+        heading="T", corps="court", cible=20, plancher=5, compte_tokens=_compte_mots
+    )
+    assert unites == []
+
+
+def test_construire_unites_repete_le_titre_dans_chaque_morceau():
+    # Le titre est inclus dans le budget de la cible pour chaque morceau,
+    # pas combiné une seule fois avant découpage — sinon les morceaux après
+    # le premier perdraient tout contexte de section une fois vectorisés.
+    unites = construire_unites(
+        heading="Titre",
+        corps=" ".join(["mot"] * 20),
+        cible=8,
+        plancher=2,
+        compte_tokens=_compte_mots,
+    )
+    assert len(unites) > 1
+    for i, unite in enumerate(unites):
+        assert unite.heading == "Titre"
+        assert unite.text.startswith("Titre\n")
+        assert unite.unit_index == i
+        assert unite.token_count <= 8 + 1  # tolérance : approximation par mots
+
+
+def test_construire_unites_calcule_un_hash_deterministe_et_distinct():
+    a = construire_unites(
+        heading="T", corps="Un corps.", cible=20, plancher=1, compte_tokens=_compte_mots
+    )
+    b = construire_unites(
+        heading="T", corps="Un corps.", cible=20, plancher=1, compte_tokens=_compte_mots
+    )
+    c = construire_unites(
+        heading="T",
+        corps="Un autre corps.",
+        cible=20,
+        plancher=1,
+        compte_tokens=_compte_mots,
+    )
+    assert a[0].content_hash == b[0].content_hash
+    assert a[0].content_hash != c[0].content_hash
