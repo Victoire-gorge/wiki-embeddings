@@ -8,6 +8,8 @@ markup, sur du texte déjà normalisé.
 from __future__ import annotations
 
 import re
+import unicodedata
+from urllib.parse import unquote
 
 import mwparserfromhell
 
@@ -19,6 +21,48 @@ import mwparserfromhell
 # Le ":" initial est ce qui distingue ce cas d'un lien de renvoi normal et
 # visible, [[:Catégorie:X|alias]], que strip_code() doit garder.
 _LIEN_INVISIBLE = re.compile(r"^(cat[ée]gorie|category):|^[a-z]{2,3}:", re.IGNORECASE)
+
+# Lien image, [[Image:X]] / [[Fichier:X]] / [[File:X]]. Mesuré sur 974 liens :
+# 951 (97,6 %) ont des paramètres (position, taille, légende), et parmi eux
+# 854 (90 %) ont une vraie légende — du vrai contenu descriptif ("Faucon
+# crécerelle"), noyé dans des mots-clés de mise en page que mwparserfromhell
+# ne comprend pas comme une syntaxe à paramètres multiples : strip_code()
+# recrache tout après le premier "|" tel quel, "|" compris ("vignette|Faucon
+# crécerelle"). Les 23 liens sans aucun paramètre ne sont jamais une légende
+# écrite par un humain — souvent juste le titre de la page redit en nom de
+# fichier — donc retirés sans tenter de les garder comme texte.
+_IMAGE = re.compile(r"^(image|fichier|file):", re.IGNORECASE)
+
+_MOTS_CLES_IMAGE = {
+    "thumb", "thumbnail", "vignette", "frame", "framed", "frameless",
+    "border", "bordure",
+    "left", "right", "center", "centre", "none", "gauche", "droite",
+    "baseline", "sub", "super", "top", "text-top", "middle", "bottom", "text-bottom",
+}
+_TAILLE_IMAGE = re.compile(r"^\d+x?\d*px$", re.IGNORECASE)
+
+
+def _legende_image(texte_parametres: str) -> str | None:
+    """Extrait la légende d'un lien image parmi ses paramètres `|`-séparés.
+
+    Ignore les mots-clés de mise en page (position, format) et les tailles
+    ("300px", "600x400px"). Rend `None` quand aucune légende ne subsiste —
+    pur bruit de mise en page, rien à garder.
+    """
+    legende = None
+    for segment in texte_parametres.split("|"):
+        segment = segment.strip()
+        if not segment:
+            continue
+        bas = segment.lower()
+        if (
+            bas in _MOTS_CLES_IMAGE
+            or _TAILLE_IMAGE.match(segment)
+            or bas.startswith(("alt=", "link=", "upright="))
+        ):
+            continue
+        legende = segment
+    return legende
 
 # Résidu d'un lien de catégorie dont les crochets ont été oubliés à l'édition
 # ou à l'import : ":Catégorie:Chêne|chêne" en texte brut, pas un nœud wiki
@@ -82,6 +126,103 @@ _TOURNURE_DE_RAPPORT = re.compile(
 )
 
 
+# URL nue (jamais un lien wiki [[...]], juste du texte brut laissé tel quel
+# par strip_code()). Mesuré sur ce wiki : 13,0 % des pages en contiennent au
+# moins une, mais ça ne représente que 0,166 % du volume total de tokens
+# (sections non vides) — une URL ne porte pas de prose, mais le volume
+# qu'elle occupe est trop faible pour biaiser sérieusement les mesures de
+# taille de section. La vraie raison de la retirer n'est pas le volume :
+# c'est le risque de faux positif au dédoublonnage (deux pages sans rapport
+# qui citent la même source se retrouveraient avec une similarité gonflée
+# par du texte qu'aucun des deux n'a réellement écrit).
+_URL = re.compile(r"\(?https?://\S+")
+
+# Mesuré : sur 14 984 URLs, seulement 22 sont précédées de "Source :" — les
+# libellés qui reviennent le plus souvent sont en fait des noms propres
+# informatifs ("PlantGrape", "INSTAGRAM", "Chaîne you tube MSV"...), pas du
+# remplissage. Contrairement aux locutions introductives, aucun préfixe
+# générique à retirer ici : pas de règle ajoutée.
+
+
+def strip_urls(text: str) -> str:
+    """Retire les URLs nues du texte, en gardant la ponctuation qui les suit.
+
+    "\\S+" est glouton et avale toute ponctuation collée sans espace à la fin
+    d'une URL ("...etude.") — on la restitue après coup, sinon la phrase perd
+    sa virgule ou son point final.
+
+    Exception : une parenthèse ouvrante collée juste avant l'URL ("(https://
+    ...)") est retirée avec elle si l'URL en est l'unique contenu — une
+    parenthèse vide ne porte aucune information. Si autre chose s'y trouve
+    aussi ("(voir https://...)"), la parenthèse reste : seule l'URL part.
+    """
+    def retire(match: re.Match[str]) -> str:
+        bloc = match.group(0)
+        parenthese_ouvrante = bloc.startswith("(")
+        if parenthese_ouvrante:
+            bloc = bloc[1:]
+        ponctuation = ""
+        while bloc and bloc[-1] in ".,;:!?)\"'’»":
+            ponctuation = bloc[-1] + ponctuation
+            bloc = bloc[:-1]
+        if parenthese_ouvrante and ponctuation.endswith(")"):
+            ponctuation = ponctuation[:-1]
+        return ponctuation
+
+    texte = _URL.sub(retire, text)
+    return re.sub(r"[ \t]+", " ", texte)
+
+
+# Bloc de configuration de graphique {{#echarts: ... | option = {JSON} }}.
+# mwparserfromhell ne le reconnaît jamais comme template (0 détecté sur les
+# pages mesurées) — strip_code() le laisse donc passer intégralement comme
+# texte brut. Mesuré sur 4 pages utilisant {{#echarts:}}, pure mise en forme
+# de graphique (couleurs, position des étiquettes), jamais de prose : aucune
+# perte démontrable à le retirer, et un vrai risque de faux positif si deux
+# fermes différentes partagent le même modèle de graphique (JSON de mise en
+# forme quasi identique indépendamment du contenu agricole réel).
+_DEBUT_GRAPHIQUE = re.compile(r"\{\{#echarts:")
+
+
+def strip_chart_blocks(text: str) -> str:
+    """Retire les blocs `{{#echarts: ... }}`, JSON de configuration imbriqué compris.
+
+    Un simple ".*?\\}\\}" non gourmand s'arrêterait à la première fermeture
+    d'un objet JSON interne, bien avant la vraie fin du bloc : le JSON
+    contient de nombreuses accolades qui n'ont rien à voir avec les deux
+    accolades du gabarit. On compte donc chaque accolade individuelle
+    jusqu'à ce que le compte revienne à zéro — une vraie correspondance de
+    parenthésage, pas une expression régulière bornée.
+
+    Limite connue : ce comptage ne comprend pas le JSON, il compte des
+    caractères. Une accolade littérale à l'intérieur d'une chaîne JSON
+    (non observée sur ce wiki, ces blocs étant générés par un outil, pas
+    tapés à la main) ferait dévier le comptage.
+    """
+    morceaux = []
+    i = 0
+    while i < len(text):
+        debut = _DEBUT_GRAPHIQUE.search(text, i)
+        if not debut:
+            morceaux.append(text[i:])
+            break
+        morceaux.append(text[i:debut.start()])
+
+        profondeur = 0
+        j = debut.start()
+        while j < len(text):
+            if text[j] == "{":
+                profondeur += 1
+            elif text[j] == "}":
+                profondeur -= 1
+                if profondeur == 0:
+                    j += 1
+                    break
+            j += 1
+        i = j
+    return "".join(morceaux)
+
+
 def strip_reporting_frame(text: str) -> str:
     """Retire les tournures de rapport (« il est rappelé que… ») du texte.
 
@@ -91,6 +232,33 @@ def strip_reporting_frame(text: str) -> str:
     ajouter en eux-mêmes.
     """
     return _TOURNURE_DE_RAPPORT.sub("", text)
+
+
+def normalize_unicode(text: str) -> str:
+    """Normalise les formes Unicode de compatibilité (NFKC).
+
+    Mesuré sur ce wiki : des légendes copiées depuis Instagram utilisent des
+    lettres du bloc Unicode "Mathematical Alphanumeric Symbols" pour simuler
+    du gras ("𝗔𝗰𝗰𝗼𝗴𝗶𝘁" au lieu de "Accompagnement") — visuellement
+    identique, mais `tiktoken` ne connaît pas ces caractères et en découpe
+    chacun en plusieurs tokens (un mot de 15 caractères gonflait à 45
+    tokens). NFKC convertit ces variantes vers leur forme normale.
+
+    À appeler avant toute reconnaissance de motif sur le texte : c'est ce que
+    suppose déjà `strip_introductory_phrase` sans le garantir jusqu'ici.
+    """
+    return unicodedata.normalize("NFKC", text)
+
+
+def strip_url_encoding(text: str) -> str:
+    """Décode les séquences %XX laissées par un lien externe qui recopie son
+    URL comme texte affiché, au lieu d'un titre lisible.
+
+    Mesuré sur ce wiki : 4 pages, 20 séquences, toutes de vrais encodages
+    ("%20" = espace, "%C3%A9" = "é" en UTF-8) — aucun pourcentage suivi de
+    deux caractères qui ressembleraient par hasard à de l'hexadécimal.
+    """
+    return unquote(text)
 
 
 def strip_introductory_phrase(text: str) -> str:
@@ -110,22 +278,38 @@ def strip_introductory_phrase(text: str) -> str:
 def clean_markup(wikitext: str) -> str:
     """Convertit du wikitext (hors tableaux, déjà extraits ailleurs) en texte.
 
-    Trois retraits, tous mesurés sur ce wiki — deux avant `strip_code()`, un
-    après :
+    Huit retraits, tous mesurés sur ce wiki — trois avant `strip_code()`,
+    cinq après :
 
     - les balises `<ref>` : `strip_code()` garde leur contenu et le soude au
       mot précédent sans espace ("la parcelleSource : étude X") — une
       citation n'est de toute façon pas la prose de la section ;
+    - les liens image (`[[Image:X]]`/`[[Fichier:X]]`/`[[File:X]]`) : remplacés
+      par leur légende si elle existe (mwparserfromhell ne comprend pas la
+      syntaxe à paramètres multiples des images — sans ce retrait,
+      `strip_code()` recrache les mots-clés de mise en page et les "|" tels
+      quels, "vignette|Faucon crécerelle") ; retirés entièrement sinon (un nom
+      de fichier nu n'est jamais une légende écrite par un humain) ;
     - les liens wiki invisibles sur la page rendue (catégorisation,
       interlangue) : `strip_code()` ne sait pas qu'ils sont invisibles et en
       affiche le titre comme texte ("Category:Anthracnose") ;
     - après `strip_code()`, le résidu d'un lien de catégorie dont les crochets
       ont été oubliés (":Catégorie:Chêne|chêne") : ce n'est pas un nœud wiki,
-      donc invisible pour les deux retraits précédents.
+      donc invisible pour les retraits précédents ;
+    - la normalisation Unicode (`normalize_unicode`), juste après
+      `strip_code()` et avant tout le reste : les retraits qui suivent
+      reconnaissent des motifs de texte, pas des caractères équivalents ;
+    - les blocs de configuration de graphique (`strip_chart_blocks`) : comme
+      le résidu de catégorie, invisibles pour mwparserfromhell, donc traités
+      après `strip_code()` ;
+    - les séquences `%XX` d'un lien externe qui recopie son URL comme texte
+      affiché (`strip_url_encoding`) ;
+    - les URLs nues (`strip_urls`).
 
-    Les templates restent gérés par `strip_code()` seul : mesuré sur ce wiki,
-    ceux qui apparaissent dans le corps d'une section (hors lead/infobox) sont
-    structurels (`{{Pages liées}}`, `{{#set:}}`...), jamais porteurs de prose.
+    Les templates restent sinon gérés par `strip_code()` seul : mesuré sur ce
+    wiki, ceux qui apparaissent dans le corps d'une section (hors lead/
+    infobox) sont structurels (`{{Pages liées}}`, `{{#set:}}`...), jamais
+    porteurs de prose.
     """
     code = mwparserfromhell.parse(wikitext)
 
@@ -134,11 +318,22 @@ def clean_markup(wikitext: str) -> str:
 
     for link in code.filter_wikilinks():
         title = str(link.title).strip()
+        if _IMAGE.match(title):
+            legende = _legende_image(str(link.text)) if link.text is not None else None
+            if legende:
+                link.text = legende
+            else:
+                code.remove(link)
+            continue
         if not title.startswith(":") and _LIEN_INVISIBLE.match(title):
             code.remove(link)
 
     text = code.strip_code()
+    text = normalize_unicode(text)
     text = _RESIDU_CATEGORIE_SANS_CROCHETS.sub("", text)
+    text = strip_chart_blocks(text)
+    text = strip_url_encoding(text)
+    text = strip_urls(text)
     # Espaces/tabulations en double laissés par un nœud retiré — pas les
     # sauts de ligne, qui séparent des paragraphes et doivent rester.
     text = re.sub(r"[ \t]+", " ", text)

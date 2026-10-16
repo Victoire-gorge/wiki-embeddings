@@ -3,9 +3,48 @@ import pytest
 from app.domain.cleaning import (
     clean_markup,
     collapse_repeated_phrases,
+    normalize_unicode,
+    strip_chart_blocks,
     strip_introductory_phrase,
     strip_reporting_frame,
+    strip_url_encoding,
+    strip_urls,
 )
+
+
+def test_normalize_unicode_convertit_le_gras_instagram():
+    # Bloc Unicode "Mathematical Alphanumeric Symbols", utilisé pour simuler
+    # du gras dans des légendes copiées depuis Instagram — visuellement
+    # identique à du texte normal, mais tiktoken découpe chacun de ces
+    # caractères en plusieurs tokens (mesuré : un mot de 15 caractères
+    # gonflait à 45 tokens).
+    gras = chr(0x1D400) + chr(0x1D41C) + chr(0x1D41C) + chr(0x1D428)
+    assert normalize_unicode(gras) == "Acco"
+
+
+def test_normalize_unicode_laisse_intact_un_texte_normal():
+    texte = "Les engrais verts sont implantés après récolte."
+    assert normalize_unicode(texte) == texte
+
+
+def test_strip_url_encoding_decode_les_espaces():
+    texte = "FRAB%20AURA%20-%20Les%20sols.pdf"
+    assert strip_url_encoding(texte) == "FRAB AURA - Les sols.pdf"
+
+
+def test_strip_url_encoding_decode_les_accents_utf8():
+    texte = "Pr%C3%A9sentation"
+    assert strip_url_encoding(texte) == "Présentation"
+
+
+def test_strip_url_encoding_laisse_intact_un_texte_sans_encodage():
+    texte = "Les engrais verts sont implantés après récolte."
+    assert strip_url_encoding(texte) == texte
+
+
+def test_clean_markup_decode_le_texte_affiche_d_un_lien_externe():
+    texte = "[https://example.com/x.pdf FRAB%20AURA.pdf]"
+    assert clean_markup(texte) == "FRAB AURA.pdf"
 
 
 @pytest.mark.parametrize(
@@ -91,6 +130,41 @@ def test_clean_markup_retire_les_liens_interlangues():
     assert clean_markup(texte) == "Fin de l'article."
 
 
+def test_clean_markup_retire_une_image_sans_parametre():
+    # [[Image:X]] nu : juste un nom de fichier, jamais une légende écrite par
+    # un humain — pas d'information à garder, même nettoyé des "_".
+    texte = "Voir [[Image:Schema.png]] ci-dessous."
+    assert clean_markup(texte) == "Voir ci-dessous."
+
+
+def test_clean_markup_retire_une_image_sans_legende():
+    # Mesuré : 10 % des liens image avec paramètres n'ont que des mots-clés
+    # de mise en page (position, taille), aucune légende — pur bruit.
+    texte = "Voir [[Fichier:Schema.png|vignette|300px]] ci-dessous."
+    assert clean_markup(texte) == "Voir ci-dessous."
+
+
+def test_clean_markup_garde_la_legende_d_une_image():
+    # Mesuré : 90 % des liens image avec paramètres ont une vraie légende,
+    # noyée dans les mots-clés de mise en page — à en extraire, pas à jeter.
+    texte = "[[Fichier:Faucon.jpg|vignette|droite|Faucon crécerelle]]"
+    assert clean_markup(texte) == "Faucon crécerelle"
+
+
+def test_clean_markup_nettoie_le_markup_a_l_interieur_d_une_legende():
+    texte = (
+        "[[Fichier:Fabaceae.jpg|vignette|Évolution des feuilles chez les "
+        "''Fabaceae''.]]"
+    )
+    assert clean_markup(texte) == "Évolution des feuilles chez les Fabaceae."
+
+
+def test_clean_markup_reconnait_image_fichier_et_file():
+    for prefixe in ("Image", "Fichier", "File"):
+        texte = f"[[{prefixe}:x.jpg|vignette|Légende commune]]"
+        assert clean_markup(texte) == "Légende commune"
+
+
 def test_clean_markup_garde_les_liens_de_categorie_avec_deux_points_et_alias():
     # [[:Catégorie:X|alias]], AVEC le ":" initial, est un lien de renvoi
     # normal et visible — le ":" initial est ce qui distingue les deux cas.
@@ -140,6 +214,69 @@ def test_clean_markup_garde_un_vrai_lien_categorie_sans_alias():
     # ci-dessus. strip_code() garde le ":" initial tel quel.
     texte = "sur la [[:Catégorie:Gestion des ravageurs]]"
     assert clean_markup(texte) == "sur la :Catégorie:Gestion des ravageurs"
+
+
+def test_strip_urls_retire_une_url_en_milieu_de_texte():
+    texte = "Voir https://example.com/page pour plus d'infos."
+    assert strip_urls(texte) == "Voir pour plus d'infos."
+
+
+def test_strip_urls_retire_les_parentheses_qui_ne_contenaient_que_l_url():
+    # Une parenthèse vide une fois l'URL retirée ne porte aucune information.
+    texte = "Cette étude (https://example.com/etude) confirme les résultats."
+    assert strip_urls(texte) == "Cette étude confirme les résultats."
+
+
+def test_strip_urls_garde_la_parenthese_si_autre_chose_y_figure():
+    # Ici la parenthèse contient aussi "voir " : elle reste, seule l'URL part.
+    texte = "Cette étude (voir https://example.com/etude) confirme les résultats."
+    assert strip_urls(texte) == "Cette étude (voir ) confirme les résultats."
+
+
+def test_strip_urls_retire_plusieurs_urls():
+    texte = "Deux sources : https://a.example.com et https://b.example.com/page."
+    assert strip_urls(texte) == "Deux sources : et ."
+
+
+def test_strip_urls_laisse_intact_un_texte_sans_url():
+    texte = "Les engrais verts sont implantés après récolte."
+    assert strip_urls(texte) == texte
+
+
+def test_clean_markup_retire_aussi_les_urls():
+    texte = "Pour en savoir plus : https://example.com/etude."
+    assert clean_markup(texte) == "Pour en savoir plus : ."
+
+
+def test_strip_chart_blocks_retire_un_bloc_echarts_avec_json_imbrique():
+    # {{#echarts: ... }} n'est jamais reconnu comme template par
+    # mwparserfromhell (0 détecté, mesuré) — strip_code() le laisse donc
+    # passer tel quel. Le JSON interne contient de nombreuses accolades non
+    # appariées pour un couple {{ }} : un simple ".*?}}" non gourmand s'arrête
+    # à la première fermeture d'objet JSON, bien avant la vraie fin du bloc.
+    texte = (
+        "Avant.\n"
+        "{{#echarts:\n  title=Rotation\n| option = "
+        '{"tooltip":{},"series":[{"type":"pie","data":['
+        '{"name":"a","value":1},{"name":"b","value":2}]}]}'
+        "\n}}\n"
+        "Après."
+    )
+    assert strip_chart_blocks(texte) == "Avant.\n\nAprès."
+
+
+def test_strip_chart_blocks_laisse_intact_un_texte_sans_graphique():
+    texte = "Les engrais verts sont implantés après récolte."
+    assert strip_chart_blocks(texte) == texte
+
+
+def test_clean_markup_retire_aussi_les_blocs_de_graphique():
+    texte = (
+        "Avant.\n"
+        '{{#echarts:\n| option = {"series":[{"data":[{"name":"a"}]}]}\n}}\n'
+        "Après."
+    )
+    assert clean_markup(texte) == "Avant.\n\nAprès."
 
 
 def test_collapse_repeated_phrases_garde_le_texte_sans_repetition_intact():

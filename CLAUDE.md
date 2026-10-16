@@ -242,6 +242,9 @@ contrainte en base.
   en recomptant après application. Se déclencher « au cas où » ajoute de la variabilité sans
   contrepartie. Voir `app/domain/cleaning.py`, dont les commentaires portent les mesures qui
   justifient chaque règle.
+- **Les règles de nettoyage actuelles sont écrites pour le français**, la langue de cette
+  instance (`xml:lang="fr"`). Mesuré : 0,17 % des pages ont un contenu majoritairement non
+  français malgré ça — volume trop faible pour une règle dédiée aujourd'hui.
 
 ## Modèle d'unités
 
@@ -269,6 +272,11 @@ contrainte en base.
 
 - une page avec elle-même, et deux unités d'une même page
 - les pages de redirection — exclusion **à l'ingestion**, on ne crée pas d'unités
+- **les pages dont le wikitext est du JSON valide** — exclusion à l'ingestion, même traitement
+  que les redirections. Mesuré : 317 pages (3,3 % du corpus) sont des pages de données pour un
+  widget de graphique (couleurs, séries, UUID), jamais de la prose. Le titre finit par ".json"
+  sur 315 d'entre elles, mais pas sur les 2 autres — le contenu est le seul signal fiable à
+  100 %, pas une convention de nommage. Voir `est_page_json` dans `app/domain/units.py`.
 - les comparaisons entre langues : le filtre `lang` dans la requête Qdrant suffit et évite de
   raisonner sur les ensembles de traductions
 
