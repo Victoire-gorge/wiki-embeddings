@@ -220,9 +220,31 @@ def test_splice_video_fields_recovers_internal_headings_of_long_resume():
     spliced = splice_video_fields(wikitext)
     sections = split_into_sections(spliced)
 
+    # "Résumé long" est injecté à un niveau de titre moins profond que ses
+    # propres sous-titres (mesuré sur une vraie page : jusqu'à 3 niveaux
+    # d'imbrication) — sinon le fil d'ancêtres générique les traiterait comme
+    # des frères, et chaque unité perdrait tout lien vers "Résumé long".
     headings = [s.heading for s in sections]
-    assert "Introduction" in headings
-    assert "Témoignage" in headings
+    assert "Résumé long > Introduction" in headings
+    assert "Résumé long > Témoignage" in headings
+
+
+def test_splice_video_fields_garde_resume_court_et_transcription_frères():
+    # Les sous-titres internes du résumé long ne doivent pas faire déborder
+    # leur imbrication sur les sections voisines : Résumé court et
+    # Transcription restent des frères propres, jamais des enfants l'un de
+    # l'autre ni de Résumé long.
+    wikitext = (
+        "{{Vidéo\n| Résumé = Résumé court.\n}}\n"
+        "{{Résumé long\n|Résumé=== Introduction ==\nTexte.\n}}\n"
+        "{{Transcription\n|transcription=texte transcrit\n}}"
+    )
+    spliced = splice_video_fields(wikitext)
+    sections = split_into_sections(spliced)
+
+    headings = [s.heading for s in sections]
+    assert "Résumé court" in headings
+    assert "Transcription" in headings
 
 
 def test_extract_tables_on_real_article_sample():

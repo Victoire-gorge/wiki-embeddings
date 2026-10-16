@@ -147,13 +147,20 @@ def splice_video_fields(wikitext: str) -> str:
             except ValueError:
                 pass  # déjà retiré (imbriqué dans un template déjà retiré)
 
+    # Niveau 1, pas 2 : le résumé long a souvent ses propres sous-titres à
+    # "==" (mesuré sur une page réelle : jusqu'à 3 niveaux de profondeur).
+    # Au même niveau que "Résumé long", ils le dépileraient comme un frère
+    # plutôt que de s'y imbriquer — perdant tout fil vers "Résumé long" dans
+    # le titre de chaque unité qui en résulte. Un niveau en dessous, l'algo
+    # générique de fil d'ancêtres les traite comme des enfants, sans aucun
+    # branchement spécifique aux pages Vidéo.
     sections = []
     if resume_court:
-        sections.append(f"== Résumé court ==\n{resume_court}")
+        sections.append(f"= Résumé court =\n{resume_court}")
     if resume_long:
-        sections.append(f"== Résumé long ==\n{resume_long}")
+        sections.append(f"= Résumé long =\n{resume_long}")
     if transcription:
-        sections.append(f"== Transcription ==\n{transcription}")
+        sections.append(f"= Transcription =\n{transcription}")
 
     reste = str(code).strip()
     return "\n\n".join(([reste] if reste else []) + sections)
