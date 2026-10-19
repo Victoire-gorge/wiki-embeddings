@@ -261,6 +261,28 @@ def strip_url_encoding(text: str) -> str:
     return unquote(text)
 
 
+# Marqueurs non-verbaux du sous-titrage automatique (YouTube). Mesuré sur ce
+# wiki, 7065 occurrences au total : [Musique]/[musique] (3958),
+# [Applaudissements] (407), [rires]/[Rires] (245), [grognement] (91),
+# [raclement de gorge] (55), [ __ ] (177, silence), plus des crochets vides
+# "[]" (1372, résidu). Jamais de la prose, qu'il vienne d'une transcription
+# (556 sections) ou d'un résumé long qui en cite un extrait (13 sections) —
+# le motif n'est jamais ambigu, pas besoin de le conditionner à une section
+# "Transcription". Le groupe de mot est optionnel pour couvrir aussi "[]"
+# et "[ ]" : testé explicitement pour ne jamais confondre avec un crochet
+# qui porte du sens ("[Sluxx]", "[réf. nécessaire]").
+_MARQUEUR_ASR = re.compile(
+    r"\[\s*(?:musique|applaudissements?|rires?|grognements?"
+    r"|raclement de gorge|_+)?\s*\]",
+    re.IGNORECASE,
+)
+
+
+def strip_asr_markers(text: str) -> str:
+    """Retire les marqueurs non-verbaux connus du sous-titrage automatique."""
+    return _MARQUEUR_ASR.sub("", text)
+
+
 def strip_introductory_phrase(text: str) -> str:
     """Retire une locution introductive en tête de texte, si elle s'y trouve.
 
@@ -278,8 +300,8 @@ def strip_introductory_phrase(text: str) -> str:
 def clean_markup(wikitext: str) -> str:
     """Convertit du wikitext (hors tableaux, déjà extraits ailleurs) en texte.
 
-    Huit retraits, tous mesurés sur ce wiki — trois avant `strip_code()`,
-    cinq après :
+    Neuf retraits, tous mesurés sur ce wiki — trois avant `strip_code()`,
+    six après :
 
     - les balises `<ref>` : `strip_code()` garde leur contenu et le soude au
       mot précédent sans espace ("la parcelleSource : étude X") — une
@@ -304,7 +326,11 @@ def clean_markup(wikitext: str) -> str:
       après `strip_code()` ;
     - les séquences `%XX` d'un lien externe qui recopie son URL comme texte
       affiché (`strip_url_encoding`) ;
-    - les URLs nues (`strip_urls`).
+    - les URLs nues (`strip_urls`) ;
+    - les marqueurs non-verbaux du sous-titrage automatique
+      (`strip_asr_markers`) : jamais ambigus, qu'ils viennent d'une
+      transcription ou d'ailleurs, donc pas conditionnés à une section
+      "Transcription".
 
     Les templates restent sinon gérés par `strip_code()` seul : mesuré sur ce
     wiki, ceux qui apparaissent dans le corps d'une section (hors lead/
@@ -334,6 +360,7 @@ def clean_markup(wikitext: str) -> str:
     text = strip_chart_blocks(text)
     text = strip_url_encoding(text)
     text = strip_urls(text)
+    text = strip_asr_markers(text)
     # Espaces/tabulations en double laissés par un nœud retiré — pas les
     # sauts de ligne, qui séparent des paragraphes et doivent rester.
     text = re.sub(r"[ \t]+", " ", text)

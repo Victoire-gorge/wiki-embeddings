@@ -4,12 +4,46 @@ from app.domain.cleaning import (
     clean_markup,
     collapse_repeated_phrases,
     normalize_unicode,
+    strip_asr_markers,
     strip_chart_blocks,
     strip_introductory_phrase,
     strip_reporting_frame,
     strip_url_encoding,
     strip_urls,
 )
+
+
+def test_strip_asr_markers_retire_les_marqueurs_connus():
+    # Mesuré sur ce wiki : 556 occurrences dans une transcription, mais 13
+    # dans un résumé long qui en cite un extrait — jamais ambigu, qu'il
+    # vienne d'une transcription ou d'ailleurs.
+    texte = "bonjour [Musique] les amis [Applaudissements] merci [rires]"
+    assert strip_asr_markers(texte) == "bonjour  les amis  merci "
+
+
+def test_strip_asr_markers_insensible_a_la_casse():
+    texte = "[MUSIQUE] et [Rires] et [grognement] et [RACLEMENT DE GORGE]"
+    assert strip_asr_markers(texte) == " et  et  et "
+
+
+def test_strip_asr_markers_retire_le_marqueur_de_silence():
+    texte = "avant [ __ ] après"
+    assert strip_asr_markers(texte) == "avant  après"
+
+
+def test_strip_asr_markers_retire_les_crochets_vides():
+    texte = "avant [] après"
+    assert strip_asr_markers(texte) == "avant  après"
+
+
+def test_strip_asr_markers_garde_un_crochet_qui_n_est_pas_un_marqueur_connu():
+    texte = "un produit [Sluxx] efficace et [réf. nécessaire] ici"
+    assert strip_asr_markers(texte) == texte
+
+
+def test_clean_markup_retire_aussi_les_marqueurs_asr():
+    texte = "bonjour [Musique] les amis"
+    assert clean_markup(texte) == "bonjour les amis"
 
 
 def test_normalize_unicode_convertit_le_gras_instagram():
