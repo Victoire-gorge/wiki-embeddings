@@ -361,7 +361,8 @@ class Unit:
     (`uuid5(page_id + content_hash + occurrence)`) elle-même. Même
     convention que `embedded_at` dans la table `units` — `None` signifie
     « pas encore calculé », pas « n'existe pas ». C'est
-    `construire_unites_page` (`app/domain/pipeline.py`) qui les remplit.
+    `construire_unites_page` (`app/domain/construction_unites.py`) qui les
+    remplit.
     """
 
     unit_index: int
