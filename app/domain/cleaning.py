@@ -400,6 +400,25 @@ def collapse_repeated_phrases(
     deviennent 5, pas 1), puisqu'elle compare chaque bloc à la copie qui le
     suit immédiatement sans revérifier le résultat. Itérer jusqu'à ce que le
     texte ne change plus fait converger vers une seule occurrence.
+
+    `max_iter=20` n'est pas choisi au hasard : une passe qui change quelque
+    chose raccourcit strictement la liste de mots (elle remplace `2n` mots par
+    `n`), donc la convergence est garantie en au plus log2(nombre de mots)
+    passes. Les transcriptions de ce wiki vont jusqu'à ~200 000 mots (mesuré) —
+    log2(200 000) ≈ 18, 20 passes laissent donc une marge sur ce pire cas
+    réaliste. Si le budget est malgré tout épuisé sans que le texte ait atteint
+    un point fixe, on lève une erreur plutôt que de renvoyer un texte à moitié
+    replié sans le signaler : ce texte partirait en vectorisation sans que
+    personne ne puisse savoir que le repli était incomplet.
+
+    Limite connue, documentée mais pas corrigée : au niveau d'un seul mot
+    (bloc de taille 1), la fonction replie dès 2 occurrences consécutives, ce
+    qui mange aussi les répétitions grammaticales légitimes du français
+    ("nous nous", "vous vous", "très très"). Pas corrigé : la mesure du volume
+    réel de ce cas sur le corpus n'a pas été faite, et l'impact sur les
+    embeddings est vraisemblablement négligeable — un mot perdu dans une
+    transcription de plusieurs milliers de mots. Pas de gain démontré, pas de
+    règle ajoutée.
     """
     mots = text.split()
     for _ in range(max_iter):
@@ -407,4 +426,9 @@ def collapse_repeated_phrases(
         if nouveau == mots:
             break
         mots = nouveau
+    else:
+        raise RuntimeError(
+            f"repli des répétitions non convergé après {max_iter} passes "
+            f"({len(mots)} mots restants) — texte potentiellement pathologique"
+        )
     return " ".join(mots)
