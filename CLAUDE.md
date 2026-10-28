@@ -276,7 +276,7 @@ contrainte en base.
   que les redirections. Mesuré : 317 pages (3,3 % du corpus) sont des pages de données pour un
   widget de graphique (couleurs, séries, UUID), jamais de la prose. Le titre finit par ".json"
   sur 315 d'entre elles, mais pas sur les 2 autres — le contenu est le seul signal fiable à
-  100 %, pas une convention de nommage. Voir `est_page_json` dans `app/domain/units.py`.
+  100 %, pas une convention de nommage. Voir `is_json_page` dans `app/domain/units.py`.
 - les comparaisons entre langues : le filtre `lang` dans la requête Qdrant suffit et évite de
   raisonner sur les ensembles de traductions
 

@@ -20,9 +20,9 @@ from app.domain.cleaning import (
 )
 from app.domain.units import (
     Unit,
-    construire_unites,
-    est_page_json,
+    build_units,
     extract_tables,
+    is_json_page,
     splice_video_fields,
     split_into_sections,
 )
@@ -34,7 +34,7 @@ from app.domain.units import (
 _NAMESPACE_UNIT_ID = uuid.UUID("cb78bcab-df4f-4d5f-bca4-d66a79fa2da0")
 
 
-def construire_unites_page(
+def build_page_units(
     page_id: int,
     wikitext: str,
     cible: int,
@@ -43,16 +43,16 @@ def construire_unites_page(
 ) -> list[Unit]:
     """Transforme le wikitext d'une page en `Unit` finales.
 
-    Rien pour une page de données JSON (`est_page_json`) — exclusion à
+    Rien pour une page de données JSON (`is_json_page`) — exclusion à
     l'ingestion, ce n'est pas une page à découper du tout.
 
     `unit_index` est renuméroté à l'échelle de la **page**, pas par section :
-    `construire_unites` ne voit qu'une section à la fois et ne peut pas le
+    `build_units` ne voit qu'une section à la fois et ne peut pas le
     faire elle-même. `unit_id` est calculé ici pour la même raison : c'est
     la première fonction de l'appel qui connaît à la fois `page_id` et
     l'occurrence d'un `content_hash` au sein de la page entière.
     """
-    if est_page_json(wikitext):
+    if is_json_page(wikitext):
         return []
 
     wikitext = splice_video_fields(wikitext)
@@ -67,7 +67,7 @@ def construire_unites_page(
         if heading and "Transcription" in heading:
             corps = collapse_repeated_phrases(corps)
         unites.extend(
-            construire_unites(heading, corps, cible, plancher, compte_tokens)
+            build_units(heading, corps, cible, plancher, compte_tokens)
         )
 
     occurrences: dict[str, int] = {}

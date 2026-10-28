@@ -42,7 +42,7 @@ _MOTS_CLES_IMAGE = {
 _TAILLE_IMAGE = re.compile(r"^\d+x?\d*px$", re.IGNORECASE)
 
 
-def _legende_image(texte_parametres: str) -> str | None:
+def _image_caption(texte_parametres: str) -> str | None:
     """Extrait la légende d'un lien image parmi ses paramètres `|`-séparés.
 
     Ignore les mots-clés de mise en page (position, format) et les tailles
@@ -319,7 +319,7 @@ def clean_markup(wikitext: str) -> str:
     for link in code.filter_wikilinks():
         title = str(link.title).strip()
         if _IMAGE.match(title):
-            legende = _legende_image(str(link.text)) if link.text is not None else None
+            legende = _image_caption(str(link.text)) if link.text is not None else None
             if legende:
                 link.text = legende
             else:

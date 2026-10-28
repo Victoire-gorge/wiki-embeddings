@@ -24,7 +24,7 @@ import mwparserfromhell
 _FIN_DE_PHRASE = re.compile(r"(?<=[.!?])\s+")
 
 
-def est_page_json(wikitext: str) -> bool:
+def is_json_page(wikitext: str) -> bool:
     """Détecte une page dont le contenu entier est du JSON, pas du wikitexte.
 
     Mesuré sur ce wiki : 317 pages (3,3 % du corpus) sont des pages de
@@ -228,11 +228,11 @@ def split_into_sections(wikitext: str) -> list[RawSection]:
     return raw_sections
 
 
-def _decouper_phrases(texte: str) -> list[str]:
+def _split_sentences(texte: str) -> list[str]:
     return [p for p in _FIN_DE_PHRASE.split(texte) if p]
 
 
-def _coupe_equilibree(
+def _balanced_split(
     texte: str, cible: int, compte_tokens: Callable[[str], int]
 ) -> list[str]:
     """Dernier recours : découpe par nombre de mots, à défaut de ponctuation.
@@ -254,7 +254,7 @@ def _coupe_equilibree(
     ]
 
 
-def atomiser(
+def atomize(
     texte: str, cible: int, compte_tokens: Callable[[str], int]
 ) -> list[str]:
     """Découpe `texte` en atomes qui tiennent chacun sous `cible` tokens.
@@ -264,7 +264,7 @@ def atomiser(
     1. un paragraphe (séparé par une ligne vide) qui tient déjà sous `cible`
        est un atome tel quel ;
     2. sinon, ses phrases ;
-    3. sinon, une coupe équilibrée par nombre de mots (`_coupe_equilibree`) —
+    3. sinon, une coupe équilibrée par nombre de mots (`_balanced_split`) —
        le cas des transcriptions, qui n'ont ni paragraphe ni ponctuation
        forte (mesuré : moins de 2 % en ont une tous les ~1300 tokens).
 
@@ -285,20 +285,20 @@ def atomiser(
     if len(paragraphes) > 1:
         atomes = []
         for paragraphe in paragraphes:
-            atomes.extend(atomiser(paragraphe, cible, compte_tokens))
+            atomes.extend(atomize(paragraphe, cible, compte_tokens))
         return atomes
 
-    phrases = _decouper_phrases(texte)
+    phrases = _split_sentences(texte)
     if len(phrases) > 1:
         atomes = []
         for phrase in phrases:
-            atomes.extend(atomiser(phrase, cible, compte_tokens))
+            atomes.extend(atomize(phrase, cible, compte_tokens))
         return atomes
 
-    return _coupe_equilibree(texte, cible, compte_tokens)
+    return _balanced_split(texte, cible, compte_tokens)
 
 
-def remplir(
+def pack(
     atomes: list[str], cible: int, plancher: int, compte_tokens: Callable[[str], int]
 ) -> list[str]:
     """Empile des atomes en groupes qui tiennent chacun sous `cible`.
@@ -352,7 +352,7 @@ class Unit:
     """Une unité finale — le fragment prêt à stocker et vectoriser.
 
     `unit_index` est relatif aux unités rendues par un seul appel de
-    `construire_unites`, pas à la page entière : renuméroter à l'échelle de
+    `build_units`, pas à la page entière : renuméroter à l'échelle de
     la page revient à l'appelant qui combine plusieurs sections, puisque
     cette fonction ne voit qu'une section à la fois.
 
@@ -361,7 +361,7 @@ class Unit:
     (`uuid5(page_id + content_hash + occurrence)`) elle-même. Même
     convention que `embedded_at` dans la table `units` — `None` signifie
     « pas encore calculé », pas « n'existe pas ». C'est
-    `construire_unites_page` (`app/domain/construction_unites.py`) qui les
+    `build_page_units` (`app/domain/unit_construction.py`) qui les
     remplit.
     """
 
@@ -374,7 +374,7 @@ class Unit:
     unit_id: uuid.UUID | None = None
 
 
-def construire_unites(
+def build_units(
     heading: str | None,
     corps: str,
     cible: int,
@@ -406,8 +406,8 @@ def construire_unites(
         cible_corps = cible
     else:
         cible_corps = max(1, cible - compte_tokens(prefixe))
-        atomes = atomiser(corps, cible_corps, compte_tokens)
-        textes = remplir(atomes, cible_corps, plancher, compte_tokens)
+        atomes = atomize(corps, cible_corps, compte_tokens)
+        textes = pack(atomes, cible_corps, plancher, compte_tokens)
 
     unites = []
     for index, morceau in enumerate(textes):
