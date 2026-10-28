@@ -1,0 +1,18 @@
+repos:
+  - repo: local
+    hooks:
+      - id: gitleaks
+        name: gitleaks (détection de secrets)
+        description: >
+          Scanne uniquement le diff en attente (--staged), pas tout
+          l'historique à chaque commit — ça resterait rapide même sur un
+          gros dépôt. Nécessite gitleaks installé (brew install gitleaks).
+        entry: gitleaks protect --staged --no-banner -v
+        language: system
+        pass_filenames: false
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=1000"]
