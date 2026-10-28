@@ -68,7 +68,12 @@ Le détail de l'architecture et de la structure des données est dans
 ```bash
 poetry install
 poetry run pytest -q   # étape 3 : transformation pure, testable sans base ni conteneur
+
+pre-commit install     # active la détection de secrets avant chaque commit
 ```
+
+Le hook de détection de secrets s'appuie sur [gitleaks](https://github.com/gitleaks/gitleaks)
+(`brew install gitleaks`), scanné aussi en CI à chaque push et pull request.
 
 `docker compose up --build` démarre PostgreSQL, Qdrant et le service — mais `app/main.py` n'est
 encore qu'un squelette (pas de point d'entrée HTTP réel tant que les étapes 1 à 8 ne sont pas

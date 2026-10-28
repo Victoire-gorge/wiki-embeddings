@@ -1,0 +1,23 @@
+repos:
+  - repo: local
+    hooks:
+      - id: gitleaks
+        name: gitleaks (détection de secrets)
+        description: >
+          Scanne uniquement le diff en attente (--staged), pas tout
+          l'historique à chaque commit — ça resterait rapide même sur un
+          gros dépôt. Nécessite gitleaks installé (brew install gitleaks).
+          -c .gitleaks.toml est explicite : la configuration par défaut
+          embarquée dans le binaire Homebrew s'est révélée vide (aucune
+          règle), donc on fournit nous-mêmes la config officielle du projet
+          (copie de config/gitleaks.toml upstream) plutôt que de dépendre
+          d'un défaut qui ne détecte rien silencieusement.
+        entry: gitleaks protect --staged --no-banner -v -c .gitleaks.toml
+        language: system
+        pass_filenames: false
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=1000"]

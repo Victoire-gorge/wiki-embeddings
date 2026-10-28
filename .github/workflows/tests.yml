@@ -26,3 +26,15 @@ jobs:
 
       - name: Linter
         run: poetry run ruff check .
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tout l'historique, pas seulement le dernier commit
+
+      - name: Détecter les secrets (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_CONFIG: .gitleaks.toml
