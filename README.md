@@ -3,8 +3,10 @@
 Indexation sémantique du wiki [Triple Performance](https://wiki.tripleperformance.fr) —
 détection des pages en doublon, et socle pour la recommandation d'articles.
 
-> **Statut : en cours de conception.** Le pipeline n'est pas encore implémenté. Les décisions
-> d'architecture sont posées et documentées, les seuils restent à établir par calibration.
+> **Statut : en construction.** L'étape 3 (construction des unités) est entièrement implémentée
+> et testée : nettoyage du wikitext mesuré sur le corpus réel, découpage par taille, calcul des
+> identifiants. Les étapes 1, 2 et 4 à 8 restent à écrire ; les seuils de calibration restent à
+> établir sur le jeu annoté.
 
 ## Le problème
 
@@ -59,12 +61,18 @@ Le détail de l'architecture et de la structure des données est dans
 - [`docs/embeddings-portee-et-limites.md`](docs/embeddings-portee-et-limites.md) — ce que les
   vecteurs capturent et ce qu'ils ne capturent pas
 - [`docs/calibration.md`](docs/calibration.md) — comment les seuils et paramètres sont établis
-- [`docs/adr-postgresql.md`](docs/adr-postgresql.md) — pourquoi PostgreSQL plutôt que MySQL
 - [`CLAUDE.md`](CLAUDE.md) — conventions et décisions, à destination des agents de code
 
 ## Démarrage
 
-À compléter une fois l'environnement en place.
+```bash
+poetry install
+poetry run pytest -q   # étape 3 : transformation pure, testable sans base ni conteneur
+```
+
+`docker compose up --build` démarre PostgreSQL, Qdrant et le service — mais `app/main.py` n'est
+encore qu'un squelette (pas de point d'entrée HTTP réel tant que les étapes 1 à 8 ne sont pas
+toutes écrites).
 
 ## Principes
 
