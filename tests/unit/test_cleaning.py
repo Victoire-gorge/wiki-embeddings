@@ -102,7 +102,7 @@ def test_clean_markup_decode_le_texte_affiche_d_un_lien_externe():
         ),
     ],
 )
-def test_retire_la_locution_introductive(texte, attendu):
+def test_strip_introductory_phrase_retire_la_locution_introductive(texte, attendu):
     assert strip_introductory_phrase(texte) == attendu
 
 
@@ -124,11 +124,11 @@ def test_retire_la_locution_introductive(texte, attendu):
         "Les engrais verts sont implantés après la récolte de céréales.",
     ],
 )
-def test_laisse_intact_ce_qui_porte_du_contenu(texte):
+def test_strip_introductory_phrase_laisse_intact_ce_qui_porte_du_contenu(texte):
     assert strip_introductory_phrase(texte) == texte
 
 
-def test_ne_retire_qu_une_seule_occurrence():
+def test_strip_introductory_phrase_ne_retire_qu_une_seule_occurrence():
     texte = "Dans cette vidéo, dans cette vidéo, le propos est répété."
     assert strip_introductory_phrase(texte) == "dans cette vidéo, le propos est répété."
 
