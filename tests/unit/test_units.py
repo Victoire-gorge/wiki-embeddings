@@ -1,11 +1,11 @@
 from pathlib import Path
 
 from app.domain.units import (
-    atomiser,
-    construire_unites,
-    est_page_json,
+    atomize,
+    build_units,
     extract_tables,
-    remplir,
+    is_json_page,
+    pack,
     splice_video_fields,
     split_into_sections,
 )
@@ -269,42 +269,42 @@ def test_extract_tables_on_real_article_sample():
     assert now_empty.wikitext == ""
 
 
-def test_est_page_json_reconnait_un_wikitext_qui_est_du_json_valide():
+def test_is_json_page_reconnait_un_wikitext_qui_est_du_json_valide():
     # Mesuré sur ce wiki : 317 pages (3,3 % du corpus) dont tout le contenu
     # est un JSON de configuration de graphique, pas du wikitexte — des
     # pages de données, jamais de la prose. Le titre finissant par ".json"
     # ne suffit pas : 2 de ces 317 pages n'ont pas ce suffixe, le contenu
     # lui-même est le seul signal fiable à 100 %.
     wikitext = '{"title": "Rotation", "series": [{"name": "a", "value": 1}]}'
-    assert est_page_json(wikitext) is True
+    assert is_json_page(wikitext) is True
 
 
-def test_est_page_json_rejette_du_wikitexte_normal():
+def test_is_json_page_rejette_du_wikitexte_normal():
     wikitext = "== Titre ==\nLes engrais verts sont implantés après récolte."
-    assert est_page_json(wikitext) is False
+    assert is_json_page(wikitext) is False
 
 
-def test_est_page_json_rejette_du_wikitexte_qui_contient_juste_des_accolades():
+def test_is_json_page_rejette_du_wikitexte_qui_contient_juste_des_accolades():
     # {{Pages liées}} n'est pas un objet JSON : json.loads doit échouer, pas
     # confondre un template wiki avec un objet.
     wikitext = "{{Pages liées}}"
-    assert est_page_json(wikitext) is False
+    assert is_json_page(wikitext) is False
 
 
-def test_atomiser_garde_un_texte_court_intact():
+def test_atomize_garde_un_texte_court_intact():
     texte = "Les engrais verts sont implantés après récolte."
-    assert atomiser(texte, cible=20, compte_tokens=_compte_mots) == [texte]
+    assert atomize(texte, cible=20, compte_tokens=_compte_mots) == [texte]
 
 
-def test_atomiser_coupe_par_paragraphe_quand_necessaire():
+def test_atomize_coupe_par_paragraphe_quand_necessaire():
     texte = "Premier paragraphe court.\n\nDeuxième paragraphe aussi court."
-    atomes = atomiser(texte, cible=4, compte_tokens=_compte_mots)
+    atomes = atomize(texte, cible=4, compte_tokens=_compte_mots)
     assert atomes == ["Premier paragraphe court.", "Deuxième paragraphe aussi court."]
 
 
-def test_atomiser_descend_aux_phrases_si_le_paragraphe_depasse():
+def test_atomize_descend_aux_phrases_si_le_paragraphe_depasse():
     texte = "Première phrase courte. Deuxième phrase courte aussi. Troisième phrase."
-    atomes = atomiser(texte, cible=4, compte_tokens=_compte_mots)
+    atomes = atomize(texte, cible=4, compte_tokens=_compte_mots)
     assert atomes == [
         "Première phrase courte.",
         "Deuxième phrase courte aussi.",
@@ -312,27 +312,27 @@ def test_atomiser_descend_aux_phrases_si_le_paragraphe_depasse():
     ]
 
 
-def test_atomiser_tombe_sur_la_coupe_equilibree_sans_ponctuation():
+def test_atomize_tombe_sur_la_coupe_equilibree_sans_ponctuation():
     # Le cas transcription : ni ligne vide, ni ponctuation forte.
     texte = " ".join(["mot"] * 20)
-    atomes = atomiser(texte, cible=6, compte_tokens=_compte_mots)
+    atomes = atomize(texte, cible=6, compte_tokens=_compte_mots)
     assert len(atomes) == 4  # ceil(20 / 6)
     assert all(_compte_mots(a) <= 6 for a in atomes)
 
 
-def test_atomiser_rejette_les_paragraphes_vides():
+def test_atomize_rejette_les_paragraphes_vides():
     # cible=3 force la cascade : à cible=10, les 4 mots du texte entier
     # rentreraient déjà sans la déclencher, et le test ne prouverait rien.
     texte = "Premier paragraphe.\n\n\n\nDeuxième paragraphe."
-    atomes = atomiser(texte, cible=3, compte_tokens=_compte_mots)
+    atomes = atomize(texte, cible=3, compte_tokens=_compte_mots)
     assert atomes == ["Premier paragraphe.", "Deuxième paragraphe."]
 
 
-def test_atomiser_ne_rend_rien_pour_un_texte_vide():
-    assert atomiser("   ", cible=10, compte_tokens=_compte_mots) == []
+def test_atomize_ne_rend_rien_pour_un_texte_vide():
+    assert atomize("   ", cible=10, compte_tokens=_compte_mots) == []
 
 
-def test_atomiser_ne_perd_et_ne_duplique_aucun_mot():
+def test_atomize_ne_perd_et_ne_duplique_aucun_mot():
     # L'invariant le plus utile : la concaténation des atomes redonne le
     # texte d'origine, mot pour mot — il attrape à la fois la perte et la
     # duplication, contrairement à une simple vérification de tailles.
@@ -343,59 +343,59 @@ def test_atomiser_ne_perd_et_ne_duplique_aucun_mot():
         "qui va forcer une coupe equilibree a un moment ou un autre du "
         "texte puisque rien ne permet de le decouper autrement du tout"
     )
-    atomes = atomiser(texte, cible=8, compte_tokens=_compte_mots)
+    atomes = atomize(texte, cible=8, compte_tokens=_compte_mots)
     assert " ".join(" ".join(atomes).split()) == " ".join(texte.split())
 
 
-def test_remplir_empile_des_atomes_tant_que_ca_rentre():
+def test_pack_empile_des_atomes_tant_que_ca_rentre():
     atomes = ["un deux trois", "quatre cinq six", "sept huit neuf dix"]
-    groupes = remplir(atomes, cible=6, plancher=1, compte_tokens=_compte_mots)
+    groupes = pack(atomes, cible=6, plancher=1, compte_tokens=_compte_mots)
     assert groupes == ["un deux trois quatre cinq six", "sept huit neuf dix"]
 
 
-def test_remplir_ferme_un_groupe_des_que_le_suivant_ne_rentre_plus():
+def test_pack_ferme_un_groupe_des_que_le_suivant_ne_rentre_plus():
     atomes = ["un deux trois quatre cinq", "six"]
-    groupes = remplir(atomes, cible=5, plancher=1, compte_tokens=_compte_mots)
+    groupes = pack(atomes, cible=5, plancher=1, compte_tokens=_compte_mots)
     assert groupes == ["un deux trois quatre cinq", "six"]
 
 
-def test_remplir_recolle_la_queue_sous_le_plancher():
+def test_pack_recolle_la_queue_sous_le_plancher():
     # "six sept" (2 mots) tombe sous le plancher (3) une fois seul dans son
     # propre groupe : recollé au précédent, même si ça dépasse la cible.
     atomes = ["un deux trois quatre cinq", "six sept"]
-    groupes = remplir(atomes, cible=5, plancher=3, compte_tokens=_compte_mots)
+    groupes = pack(atomes, cible=5, plancher=3, compte_tokens=_compte_mots)
     assert groupes == ["un deux trois quatre cinq six sept"]
 
 
-def test_remplir_ne_recolle_pas_si_la_queue_depasse_le_plancher():
+def test_pack_ne_recolle_pas_si_la_queue_depasse_le_plancher():
     atomes = ["un deux trois quatre cinq", "six sept huit"]
-    groupes = remplir(atomes, cible=5, plancher=3, compte_tokens=_compte_mots)
+    groupes = pack(atomes, cible=5, plancher=3, compte_tokens=_compte_mots)
     assert groupes == ["un deux trois quatre cinq", "six sept huit"]
 
 
-def test_remplir_recolle_un_groupe_de_tete_sous_le_plancher():
+def test_pack_recolle_un_groupe_de_tete_sous_le_plancher():
     # Trouvé sur le corpus réel ("Céréales > Principales variétés") : un
     # titre court suivi d'une première phrase courte peut former un premier
     # groupe isolé sous le plancher — pas seulement le dernier.
     atomes = ["titre court", "une phrase plus longue avec six mots exactement"]
-    groupes = remplir(atomes, cible=6, plancher=3, compte_tokens=_compte_mots)
+    groupes = pack(atomes, cible=6, plancher=3, compte_tokens=_compte_mots)
     assert groupes == ["titre court une phrase plus longue avec six mots exactement"]
 
 
-def test_remplir_sur_un_seul_atome_le_rend_tel_quel():
+def test_pack_sur_un_seul_atome_le_rend_tel_quel():
     atomes = ["un seul atome ici"]
-    groupes = remplir(atomes, cible=10, plancher=1, compte_tokens=_compte_mots)
+    groupes = pack(atomes, cible=10, plancher=1, compte_tokens=_compte_mots)
     assert groupes == ["un seul atome ici"]
 
 
-def test_remplir_ne_perd_et_ne_duplique_aucun_mot():
+def test_pack_ne_perd_et_ne_duplique_aucun_mot():
     atomes = ["un deux trois", "quatre cinq", "six sept huit neuf", "dix"]
-    groupes = remplir(atomes, cible=4, plancher=2, compte_tokens=_compte_mots)
+    groupes = pack(atomes, cible=4, plancher=2, compte_tokens=_compte_mots)
     assert " ".join(" ".join(groupes).split()) == " ".join(" ".join(atomes).split())
 
 
-def test_construire_unites_rend_une_seule_unite_si_ca_tient():
-    unites = construire_unites(
+def test_build_units_rend_une_seule_unite_si_ca_tient():
+    unites = build_units(
         heading="Titre",
         corps="Un corps de texte assez court.",
         cible=20,
@@ -409,8 +409,8 @@ def test_construire_unites_rend_une_seule_unite_si_ca_tient():
     assert unites[0].token_count == _compte_mots(unites[0].text)
 
 
-def test_construire_unites_sans_titre_ne_prefixe_rien():
-    unites = construire_unites(
+def test_build_units_sans_titre_ne_prefixe_rien():
+    unites = build_units(
         heading=None,
         corps="Un texte sans titre associé.",
         cible=20,
@@ -421,25 +421,25 @@ def test_construire_unites_sans_titre_ne_prefixe_rien():
     assert unites[0].heading is None
 
 
-def test_construire_unites_rejette_un_corps_vide():
-    unites = construire_unites(
+def test_build_units_rejette_un_corps_vide():
+    unites = build_units(
         heading="Titre", corps="   ", cible=20, plancher=2, compte_tokens=_compte_mots
     )
     assert unites == []
 
 
-def test_construire_unites_rejette_sous_le_plancher():
-    unites = construire_unites(
+def test_build_units_rejette_sous_le_plancher():
+    unites = build_units(
         heading="T", corps="court", cible=20, plancher=5, compte_tokens=_compte_mots
     )
     assert unites == []
 
 
-def test_construire_unites_repete_le_titre_dans_chaque_morceau():
+def test_build_units_repete_le_titre_dans_chaque_morceau():
     # Le titre est inclus dans le budget de la cible pour chaque morceau,
     # pas combiné une seule fois avant découpage — sinon les morceaux après
     # le premier perdraient tout contexte de section une fois vectorisés.
-    unites = construire_unites(
+    unites = build_units(
         heading="Titre",
         corps=" ".join(["mot"] * 20),
         cible=8,
@@ -454,14 +454,14 @@ def test_construire_unites_repete_le_titre_dans_chaque_morceau():
         assert unite.token_count <= 8 + 1  # tolérance : approximation par mots
 
 
-def test_construire_unites_calcule_un_hash_deterministe_et_distinct():
-    a = construire_unites(
+def test_build_units_calcule_un_hash_deterministe_et_distinct():
+    a = build_units(
         heading="T", corps="Un corps.", cible=20, plancher=1, compte_tokens=_compte_mots
     )
-    b = construire_unites(
+    b = build_units(
         heading="T", corps="Un corps.", cible=20, plancher=1, compte_tokens=_compte_mots
     )
-    c = construire_unites(
+    c = build_units(
         heading="T",
         corps="Un autre corps.",
         cible=20,
