@@ -39,10 +39,21 @@ class OpenAIEmbeddingBackend(EmbeddingBackend):
     """
 
     def __init__(self, client: openai.OpenAI | None = None):
-        # max_retries=0 : le SDK ne distingue pas quota épuisé de débit
-        # dépassé (voir is_quota_exhausted), on gère nous-mêmes les 429.
-        self._client = client or openai.OpenAI(max_retries=0)
+        self._client = client
         self._encoding = tiktoken.get_encoding(_TOKENIZER_ENCODING)
+
+    @property
+    def _openai_client(self) -> openai.OpenAI:
+        # Construit à la demande, pas dans __init__ : openai.OpenAI() lève
+        # dès la construction si OPENAI_API_KEY est absent, ce qui
+        # empêcherait d'utiliser model_name/dimension/count_tokens — qui
+        # n'ont besoin d'aucune clé — sans en avoir une quand même.
+        if self._client is None:
+            # max_retries=0 : le SDK ne distingue pas quota épuisé de
+            # débit dépassé (voir is_quota_exhausted), on gère nous-mêmes
+            # les 429.
+            self._client = openai.OpenAI(max_retries=0)
+        return self._client
 
     @property
     def model_name(self) -> str:
@@ -63,7 +74,7 @@ class OpenAIEmbeddingBackend(EmbeddingBackend):
         backoff = _INITIAL_BACKOFF_SECONDS
         while True:
             try:
-                response = self._client.embeddings.create(
+                response = self._openai_client.embeddings.create(
                     model=_MODEL_NAME, input=texts
                 )
                 break
